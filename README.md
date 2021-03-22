@@ -19,11 +19,11 @@ Behaviour with repeating data is dependent on whether the field is repeating in 
 | Not repeating | Repeating     | New instance *         |
 | Repeating     | Repeating     | Same instance          |
 
-* Note that this will create a new instance *every time the rule is triggered*. Select the "only if empty" option to create a new instance only when the value copied is different to the value in the current highest-numbered instance. This mode is like an audit trail - it gives a history of values for a field. 
+\* Note that this will create a new instance *every time the rule is triggered*. Select the "only if empty" option to create a new instance only when the value copied is different to the value in the current highest-numbered instance. This mode is like an audit trail - it gives a history of values for a field. 
 
 ## Limitations
 
-* Data may be copied only *from* fields in the same event as the triggerring form.
+* Data may be copied *from* fields only in the same event as the triggering form.
 * Data may be copied *to* fields in a single event. To copy to multiple events set up a trigger/rule for each event.
 
 ## Configuration
