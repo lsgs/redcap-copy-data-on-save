@@ -1,0 +1,106 @@
+{
+	"name": "Copy Data on Save",
+	"namespace": "MCRI\\CopyDataOnSave",
+	"description": "Copy data from one place to another when you save a form. You can set up multiple copy processes to different projects or even to other fields in the same project.",
+    "authors": [
+        {
+            "name": "Luke Stevens",
+            "email": "luke.stevens@mcri.edu.au",
+            "institution": "Murdoch Children's Research Institute"
+        }
+    ],
+    "framework-version": 5,
+    "compatibility": {
+        "redcap-version-min": "9.10.0"
+    },
+	"permissions": [
+			"redcap_save_record"
+		],
+	"project-settings": [
+        {
+            "key": "copy-config",
+            "name": "Copy Configuration",
+            "required": false,
+            "type": "sub_settings",
+            "repeatable": true,
+            "sub_settings": [
+                {
+                    "key": "copy-enabled",
+                    "name": "Enabled?",
+                    "type": "checkbox"
+                },
+                {
+                    "name": "Trigger form(s)<br>Evaluate trigger logic on save of this form",
+                    "key": "trigger-form",
+                    "repeatable": true,
+                    "type": "form-list"
+                },
+				{
+					"name": "Trigger condition (REDCap logic syntax)<br>(Optional - leave empty to always copy.)",
+					"key": "trigger-logic",
+					"required": false,
+					"type": "text"
+				},
+				{
+					"name": "Destination project<br>(Can be <i>this</i> project)",
+					"key": "dest-project",
+					"required": true,
+					"type": "project-id"
+				},
+				{
+					"name": "Destination event unique name<br>(Optional - leave empty if destination not longitudinal or copying to first event)",
+					"key": "dest-event",
+					"required": false,
+					"type": "text"
+				},
+                {
+                    "name": "Field containing record id for destination<br>(If record id in destination to match record id in source then select first field.)",
+                    "key": "record-id-field",
+                    "required": true,
+                    "type": "field-list"
+                },
+                {
+                    "key": "record-create",
+                    "name": "Create record if not present in destination?",
+                    "type": "checkbox"
+                },
+                {
+					"name": "Data Access Group option",
+					"key": "dag-option",
+					"type": "dropdown",
+                    "required": true,
+					"choices": [
+						{ "value": "0", "name": "Ignore" },
+						{ "value": "1", "name": "Include DAG in copy" },
+						{ "value": "2", "name": "Map source to destination (not yet implemented)" }
+					]
+				},
+                {
+                    "name": "Copy specification",
+                    "key": "copy-fields",
+                    "type": "sub_settings",
+                    "repeatable": true,
+                    "sub_settings": [
+                        {
+                            "name": "Field in source project",
+                            "key": "source-field",
+                            "required": true,
+                            "type": "field-list"
+                        },
+                        {
+                            "name": "Destination field name",
+                            "key": "dest-field",
+                            "required": true,
+                            "type": "text"
+                        },
+                        {
+                            "name": "Copy only if destination field empty (don't update)?",
+                            "key": "only-if-empty",
+                            "type": "checkbox"
+                        }
+                    ]
+				}
+			]
+		}
+    ]
+}
