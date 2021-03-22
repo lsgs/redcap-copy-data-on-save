@@ -4,11 +4,27 @@
 
 This module enables data to be copied from one place to another when you save a form. You can set up multiple copy processes to different projects or even to other fields in the same project.
 
+Copying the value of one field to multiple fields in the destination *is* supported.
+
 Enable and configure the module in the source project. No action is required in the destination project.
+
+## Repeating Data
+
+Behaviour with repeating data is dependent on whether the field is repeating in the source, or in the destination, or both, as follows:
+
+| Source        | Destination   | Behaviour              |
+| ------------- | ------------- | ---------------------- |
+| Not repeating | Not repeating | To non-repeating field |
+| Repeating     | Not repeating | To non-repeating field |
+| Not repeating | Repeating     | New instance *         |
+| Repeating     | Repeating     | Same instance          |
+
+* Note that this will create a new instance *every time the rule is triggered*. Select the "only if empty" option to create a new instance only when the value copied is different to the value in the current highest-numbered instance. This mode is like an audit trail - it gives a history of values for a field. 
 
 ## Limitations
 
-This module does not (yet!) support copying to fields in repeating forms or events.
+* Data may be copied only *from* fields in the same event as the triggerring form.
+* Data may be copied *to* fields in a single event. To copy to multiple events set up a trigger/rule for each event.
 
 ## Configuration
 
