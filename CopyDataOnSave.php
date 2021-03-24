@@ -97,12 +97,12 @@ class CopyDataOnSave extends AbstractExternalModule {
                     if ($rptFrmInSource || $rptEvtInSource) {
                         $destInstance = $repeat_instance; // rpt src -> rpt dest: same instance
                     } else {
-                        if (array_key_exists($rptInstrumentKeyDest, $destProjectData[$record]['repeat_instances'][$destEventId])
-                                && is_array($destProjectData[$record]['repeat_instances'][$destEventId][$rptInstrumentKeyDest])) {
-                            $destInstances = $destProjectData[$record]['repeat_instances'][$destEventId][$rptInstrumentKeyDest];
+                        if (array_key_exists($rptInstrumentKeyDest, $destProjectData[$destRecord]['repeat_instances'][$destEventId])
+                                && is_array($destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest])) {
+                            $destInstances = $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest];
                             ksort($destInstances, SORT_NUMERIC);
                             $maxInstance = key(array_slice($destInstances, -1, 1, true));
-                            $valInMax = $destProjectData[$record]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$maxInstance][$df];
+                            $valInMax = $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$maxInstance][$df];
 
                             if ($valueToCopy==$valInMax && $noOverwrite) continue; // skip creating a new instance as no new value
 
@@ -111,10 +111,10 @@ class CopyDataOnSave extends AbstractExternalModule {
                             $destInstance = 1;
                         }
                     }
-                    $valueInDest = $destProjectData[$record]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
+                    $valueInDest = $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
                 } else {
                     $destInstance = null;
-                    $valueInDest = $destProjectData[$record][$destEventId][$df];
+                    $valueInDest = $destProjectData[$destRecord][$destEventId][$df];
                 }
 
                 if ($valueInDest!='' && $noOverwrite) {

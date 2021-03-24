@@ -16,7 +16,7 @@ Behaviour with repeating data is dependent on whether the field is repeating in 
 | ------------- | ------------- | ---------------------- |
 | Not repeating | Not repeating | To non-repeating field |
 | Repeating     | Not repeating | To non-repeating field |
-| Not repeating | Repeating     | New instance *         |
+| Not repeating | Repeating     | New instance \*        |
 | Repeating     | Repeating     | Same instance          |
 
 \* Note that this will create a new instance *every time the rule is triggered*. Select the "only if empty" option to create a new instance only when the value copied is different to the value in the current highest-numbered instance. This mode is like an audit trail - it gives a history of values for a field. 
