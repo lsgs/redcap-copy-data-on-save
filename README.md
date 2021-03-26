@@ -25,6 +25,7 @@ Behaviour with repeating data is dependent on whether the field is repeating in 
 
 * Data may be copied *from* fields only in the same event as the triggering form.
 * Data may be copied *to* fields in a single event. To copy to multiple events set up a trigger/rule for each event.
+* Copying data occurs when a data entry form or survey page is saved. Copying is not triggered for data imports.
 
 ## Configuration
 
@@ -53,7 +54,14 @@ Behaviour with repeating data is dependent on whether the field is repeating in 
 * Select how the DAG of the copied record should be utilised.
     1. Ignore: do not set or update the DAG for the record in the destination project.
     2. Include DAG in copy: the unique DAG name for the source record's DAG will be included in the copy. Destination DAGs must have matching names for the copy to be successful.
-    3. Map source DAGs to destination DAGs: specify the destination DAG to use for each source DAG. (NOT YET IMPLEMENTED).
+    3. Map source DAGs to destination DAGs: specify the destination DAG to use for each source DAG. Multiple DAGs in the source project can be mapped to a single destination DAG.
+
+**DAG Mapping**
+* Utilised for DAG option "Map source to destination" only. Unfortunately due to a current limitation of the module framework branching logic does not work for sub-settings.
+* Do not enter settings here if no DAGs to copy or if DAG names match.
+* Source DAGs not listed will be ignored and there will be no DAG assigned in the destination.
+* Mapping multiple source DAGs to a single destination DAG is perfectly legitimate...
+* Mapping a source DAG to multiple destination DAGs is not. The last one wins.
 
 **Copy fields**
 * Pairs of fields mapping the source to the destination.
@@ -63,7 +71,9 @@ Behaviour with repeating data is dependent on whether the field is repeating in 
 
 This example illustrates a few things that the module facilitates:
 * Copying data between fields in the same project
-* Setting the Form Status automatically (in this case using a radio field, but how about using a calc field?).
+* Setting the Form Status automatically (in this case using a radio field, but using a calc field is an alternative).
 * Setting the record's DAG automatically by using a text field with @CALCTEXT() to generate a valid unique DAG name.
+`@CALCTEXT(if([record-name] - rounddown(([record-name]/2),0)*2=0,'even','odd'))`
 
-![Copy on save](./set_status_set_dag.gif) ![Copy on save config](./set_status_set_dag_config.png)
+![Copy on save](./set_status_set_dag.gif) 
+![Copy on save config](./set_status_set_dag_config.png)

@@ -20,6 +20,7 @@ class CopyDataOnSave extends AbstractExternalModule {
             $recIdField = $instruction['record-id-field'];
             $recCreate = $instruction['record-create'];
             $dagOption = $instruction['dag-option'];
+            $dagMap = $instruction['dag-map'];
             $copyFields = $instruction['copy-fields'];
 
             $readSourceFields[] = $recIdField;
@@ -54,7 +55,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 'exportDataAccessGroups' => true
             ));
 
-            if (!$recCreate && !array_key_exists($destRecord, $destProjectData)) continue; // can't create a new record
+            if (!$recCreate && !array_key_exists($destRecord, $destProjectData)) continue; // create new record disabled
 
             $saveArray = array();
             $saveValues = array();
@@ -128,8 +129,25 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
             }
 
-            if ($dagOption > 0) {
-                $saveArray[$destRecord][$destProj->firstEventId]['redcap_data_access_group'] = $sourceProjectData[$record][$event_id]['redcap_data_access_group'];
+            switch ("$dagOption") {
+                case "1": // dest same as source
+                    $saveArray[$destRecord][$destProj->firstEventId]['redcap_data_access_group'] = $sourceProjectData[$record][$event_id]['redcap_data_access_group'];
+                    break;
+                case "2": // map
+                    $sdag = $sourceProjectData[$record][$event_id]['redcap_data_access_group'];
+                    $ddag = '';
+                    if ($sdag!='') {
+                        foreach ($dagMap as $dm) {
+                            if ($sdag==\REDCap::getGroupNames(true, $dm['source-dag'])) {
+                                $ddag = $dm['dest-dag'];
+                                // break; // don't break so last wins, not first, if source dag specified more than once (same behaviour as for source fields)
+                            }
+                        }
+                    }
+                    $saveArray[$destRecord][$destProj->firstEventId]['redcap_data_access_group'] = $ddag;
+                    break;
+                default: // ignore or n/a
+                    break;
             }
 
             $saveResult = \REDCap::saveData($destProjectId, 'array', $saveArray, 'overwrite');
