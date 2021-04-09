@@ -30,6 +30,11 @@
                     "type": "checkbox"
                 },
                 {
+                    "name": "<div class=\"blue text-center\">Trigger and Destination</div>",
+                    "key": "header-trigger",
+                    "type": "descriptive"
+                },
+                {
                     "name": "Trigger form(s)<br>Evaluate trigger logic on save of this form",
                     "key": "trigger-form",
                     "repeatable": true,
@@ -54,6 +59,11 @@
 					"type": "text"
 				},
                 {
+                    "name": "<div class=\"blue text-center\">Destination Record</div>",
+                    "key": "header-record",
+                    "type": "descriptive"
+                },
+                {
                     "name": "Field containing record id for destination<br>(If record id in destination to match record id in source then select first field.)",
                     "key": "record-id-field",
                     "required": true,
@@ -65,6 +75,11 @@
                     "type": "checkbox"
                 },
                 {
+                    "name": "<div class=\"blue text-center\">DAG Options</div>",
+                    "key": "header-dag",
+                    "type": "descriptive"
+                },
+                {
 					"name": "Data Access Group option",
 					"key": "dag-option",
 					"type": "dropdown",
@@ -72,28 +87,28 @@
 					"choices": [
 						{ "value": "0", "name": "Ignore or N/A" },
 						{ "value": "1", "name": "Include DAG in copy" },
-						{ "value": "2", "name": "Map source to destination (not yet implemented)" }
+						{ "value": "2", "name": "Map source to destination" }
 					]
 				},
                 {
-                    "name": "DAG mapping notes:<ul><li>Utilised for DAG option \"Map source to destination\" only.</li><li>Do not enter settings here if no DAGs to copy or if DAG names match.</li><li>Source DAGs not listed here will be ignored and there will be no DAG assigned in the destination.</li><li>Mapping multiple source DAGs to a single destination DAG is perfectly legitimate...</li><li>Mapping a source DAG to multiple destination DAGs is not. The last one wins.</li><li>(And yes, it would good if this could be hidden except when needed)</li></ul>",
+                    "name": "<div class=\"text-muted\">DAG mapping notes:<ul><li class=\"font-weight-bold\">Utilised for DAG option \"Map source to destination\" only.</li><li>Do not enter settings here if no DAGs to copy or if DAG names match.</li><li>Source DAGs not listed here will be ignored and there will be no DAG assigned in the destination.</li><li>Mapping multiple source DAGs to a single destination DAG is perfectly legitimate...</li><li>Mapping a source DAG to multiple destination DAGs is not. The last one wins.</li><li>(And yes, it would good if this could be hidden except when needed)</li></ul></div>",
                     "key": "dag-map-desc",
                     "type": "descriptive"
                 },
                 {
-                    "name": "DAG mapping",
+                    "name": "<span class=\"text-muted\">DAG mapping</span>",
                     "key": "dag-map",
                     "type": "sub_settings",
                     "repeatable": true,
                     "sub_settings": [
                         {
-                            "name": "DAG in source project",
+                            "name": "<span class=\"text-muted\">DAG in source project</span>",
                             "key": "source-dag",
                             "required": false,
                             "type": "dag-list"
                         },
                         {
-                            "name": "DAG unique name in destination project",
+                            "name": "<span class=\"text-muted\">DAG unique name in destination project</span>",
                             "key": "dest-dag",
                             "required": false,
                             "type": "text"
@@ -101,7 +116,12 @@
                     ]
 				},
                 {
-                    "name": "Copy specification",
+                    "name": "<div class=\"blue text-center\">Copy Specification</div>",
+                    "key": "header-copy",
+                    "type": "descriptive"
+                },
+                {
+                    "name": "Copy field",
                     "key": "copy-fields",
                     "type": "sub_settings",
                     "repeatable": true,
