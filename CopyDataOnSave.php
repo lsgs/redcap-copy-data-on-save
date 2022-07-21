@@ -38,7 +38,7 @@ class CopyDataOnSave extends AbstractExternalModule {
             ));
 
             $destProj = new \Project($destProjectId);
-            $destRecord = $sourceProjectData[$record][$event_id][$recIdField];
+            $destRecord = $this->getDestinationRecordId($record, $event_id, $repeat_instance, $recIdField, $sourceProjectData);
             if (empty($destEventName)) {
                 $destEventId = $destProj->firstEventId;
             } else {
@@ -156,7 +156,8 @@ class CopyDataOnSave extends AbstractExternalModule {
             $detail = "Copy from: record=$record, event=$event_id, instrument=$instrument, instance=$repeat_instance";
             $detail .= " \nCopy to: project_id=$destProjectId, record=$destRecord";
     
-            if (count($saveResult['errors'])>0) {
+            if ((is_array($saveResult['errors']) && count($saveResult['errors'])>0) || 
+                (!is_array($saveResult['errors']) && !empty($saveResult['errors'])) ) {
                 $title .= ": COPY FAILED ";
                 $detail .= " \n".print_r($saveResult['errors'], true);
                 \REDCap::logEvent($title, $detail, '', $record, $event_id);
@@ -166,4 +167,27 @@ class CopyDataOnSave extends AbstractExternalModule {
             }
         }
 	}
+
+    /**
+     * setDestinationRecordId
+     * Get the record id to use in the destination from the source data - supports using field from repeating form/event
+     * @param string $record
+     * @param string $event_id
+     * @param string $instance
+     * @param string $recIdField
+     * @param string $sourceProjectData
+     * @return string
+     * @since 1.1.0
+     */
+    protected function getDestinationRecordId($record, $event_id, $instance, $recIdField, $sourceProjectData) {
+        global $Proj;
+        if ($Proj->isRepeatingEvent($event_id)) {
+            $destRecordId = $sourceProjectData[$record]['repeat_instances'][$event_id][''][$instance][$recIdField];
+        } else if ($Proj->isRepeatingForm($event_id, $Proj->metadata[$recIdField]['form_name'])) {
+            $destRecordId = $sourceProjectData[$record]['repeat_instances'][$event_id][$Proj->metadata[$recIdField]['form_name']][$instance][$recIdField];
+        } else {
+            $destRecordId = $sourceProjectData[$record][$event_id][$recIdField];
+        }
+        return $destRecordId;
+    }
 }
