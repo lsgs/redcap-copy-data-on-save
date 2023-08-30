@@ -98,7 +98,10 @@ class CopyDataOnSave extends AbstractExternalModule {
                     if ($rptFrmInSource || $rptEvtInSource) {
                         $destInstance = $repeat_instance; // rpt src -> rpt dest: same instance
                     } else {
-                        if (array_key_exists($rptInstrumentKeyDest, $destProjectData[$destRecord]['repeat_instances'][$destEventId])
+                        if (is_array($destProjectData)
+                                && is_array($destProjectData[$destRecord])
+                                && is_array($destProjectData[$destRecord]['repeat_instances'])
+                                && array_key_exists($rptInstrumentKeyDest, $destProjectData[$destRecord]['repeat_instances'][$destEventId])
                                 && is_array($destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest])) {
                             $destInstances = $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest];
                             ksort($destInstances, SORT_NUMERIC);
@@ -150,7 +153,11 @@ class CopyDataOnSave extends AbstractExternalModule {
                     break;
             }
 
-            $saveResult = \REDCap::saveData($destProjectId, 'array', $saveArray, 'overwrite');
+            try {
+                $saveResult = \REDCap::saveData($destProjectId, 'array', $saveArray, 'overwrite');
+            } catch (\Throwable $e) {
+                $saveResult = array('errors'=>$e->getMessage());
+            }
 
             $title = "CopyDataOnSave module";
             $detail = "Copy from: record=$record, event=$event_id, instrument=$instrument, instance=$repeat_instance";
