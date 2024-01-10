@@ -46,6 +46,9 @@ Behaviour with repeating data is dependent on whether the field is repeating in 
 
 **Field for record id**
 * Select the field in the source project that will be utilised as the record id for the copied data. If the records are to be named the same in source and destination then select the first field.
+
+**Destination project's field to match with**
+* Variable containing the value to match with the value in the destination variable indicated in the feld here below (If record id in destination to match record id in source then select first field).
 	
 **Create destination records**
 * Set whether the process should create a record in the destination project if it does not already exist.
