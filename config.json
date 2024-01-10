@@ -58,10 +58,16 @@
                     "type": "descriptive"
                 },
                 {
-                    "name": "Field containing record id for destination<br>(If record id in destination to match record id in source then select first field.)",
+                    "name": "Variable containing the value to match with the value in the destination variable indicated in the feld here below<br>(If record id in destination to match record id in source then select first field.)",
                     "key": "record-id-field",
                     "required": true,
                     "type": "field-list"
+                },
+                {
+                    "name": "Destination project's field to match with the value in the source field indicated above<br>(Let it empty if the destination field is the first field of the destination project (i.e.: record_id)",
+                    "key": "destination-key-field",
+                    "required": false,
+                    "type": "text"
                 },
                 {
                     "key": "record-create",

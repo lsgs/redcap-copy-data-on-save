@@ -10,6 +10,7 @@ class CopyDataOnSave extends AbstractExternalModule {
         global $Proj;
 		$settings = $this->getSubSettings('copy-config');
 
+
         foreach($settings as $instruction) {
             if (!$instruction['copy-enabled']) continue; 
             if (array_search($instrument, $instruction['trigger-form'])===false) continue;
@@ -18,12 +19,14 @@ class CopyDataOnSave extends AbstractExternalModule {
             $destProjectId = $instruction['dest-project'];
             $destEventName = $instruction['dest-event'];
             $recIdField = $instruction['record-id-field'];
+			$destKeyField = $instruction['destination-key-field'];
             $recCreate = $instruction['record-create'];
             $dagOption = $instruction['dag-option'];
             $dagMap = $instruction['dag-map'];
             $copyFields = $instruction['copy-fields'];
 
             $readSourceFields[] = $recIdField;
+			
 
             foreach ($copyFields as $cf) {
                 $readSourceFields[] = $cf['source-field'];
@@ -38,7 +41,7 @@ class CopyDataOnSave extends AbstractExternalModule {
             ));
 
             $destProj = new \Project($destProjectId);
-            $destRecord = $this->getDestinationRecordId($record, $event_id, $repeat_instance, $recIdField, $sourceProjectData);
+            $destRecord = $this->getDestinationRecordId($record, $event_id, $repeat_instance, $recIdField, $sourceProjectData, $destKeyField, $destProjectId, $recCreate);
             if (empty($destEventName)) {
                 $destEventId = $destProj->firstEventId;
             } else {
@@ -186,15 +189,53 @@ class CopyDataOnSave extends AbstractExternalModule {
      * @return string
      * @since 1.1.0
      */
-    protected function getDestinationRecordId($record, $event_id, $instance, $recIdField, $sourceProjectData) {
+    protected function getDestinationRecordId($record, $event_id, $instance, $recIdField, $sourceProjectData, $destKeyField, $destProjectId, $recCreate) {
         global $Proj;
         if ($Proj->isRepeatingEvent($event_id)) {
             $destRecordId = $sourceProjectData[$record]['repeat_instances'][$event_id][''][$instance][$recIdField];
         } else if ($Proj->isRepeatingForm($event_id, $Proj->metadata[$recIdField]['form_name'])) {
             $destRecordId = $sourceProjectData[$record]['repeat_instances'][$event_id][$Proj->metadata[$recIdField]['form_name']][$instance][$recIdField];
-        } else {
-            $destRecordId = $sourceProjectData[$record][$event_id][$recIdField];
-        }
+        } else if (!empty($destKeyField)) {
+			
+            $dest_value_to_match = $sourceProjectData[$record][$event_id][$recIdField];
+			$params = array('return_format' => 'json', 'project_id' => $destProjectId, 'records' => NULL, 'fields' => NULL, 'filterLogic' => "[$destKeyField] = $dest_value_to_match");
+            $result = \REDCap::getData($params);
+			
+			//check how many records are returned with the used filter.
+			//if there are more than one record it means that the key_destination was not a unique value within the destination project and that it cannot be used as such.
+			//in this case the EM should not run
+			//If there is 1 or 0 record returned, the EM can run normally.
+			
+			// Decode the JSON into an associative array
+			$resultArray = json_decode($result, true);
+			// get the varname of the record_id
+			$dest_record_id_name = key($resultArray[0]);
+
+			// Count the number of objects/records returned
+			$num_records = count($resultArray);
+			
+			if ($num_records > 1) {
+				// Stop the rest of the code
+				exit; // There are more than one record in the result
+				
+			} else if ($num_records==1) {
+				$destRecordId = $resultArray[0][$dest_record_id_name]; // get/define the value of the record_id
+
+			} else if ($num_records==0 && $recCreate) {
+				//since this original code from this EM assume that a record_id value for the destination project is findable in the source project (and if not, no data are copied...
+				//... and this branch looks for a record_id in the destination project and aims to create a new one if not found
+				//a record_id is necessary to be put in the variable $destRecordId
+				// the method "reserveNewRecordId" help us:
+				//Reserve/Identify the new record ID in a project prior to creating the record:
+				$destRecordId = \REDCap::reserveNewRecordId($destProjectId);
+			} else {
+			exit;
+            }
+              
+	   } else {
+		   $destRecordId = $sourceProjectData[$record][$event_id][$recIdField];
+       }
         return $destRecordId;
-    }
+    
+}
 }
