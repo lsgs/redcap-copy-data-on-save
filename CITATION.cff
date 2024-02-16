@@ -1,0 +1,28 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: 'REDCap External Module: Copy Data on Save'
+message: >-
+  If you use this external module, and wish to cite it
+  alongside REDCap itself, you may do so using the metadata
+  from this file.
+type: software
+authors:
+  - given-names: Luke
+    family-names: Stevens
+    email: luke.stevens@mcri.edu.au
+    affiliation: Murdoch Children's Research Institute
+    orcid: 'https://orcid.org/0000-0001-8878-3326'
+repository-code: 'https://github.com/lsgs/redcap-copy-data-on-save'
+abstract: >-
+  An external module for the REDCap web-based data capture
+  application that enables data to be copied from one place
+  to another when you save a form. You can set up multiple
+  copy processes to copy data into different projects or to
+  other fields within the same project.
+keywords:
+  - REDCap
+  - electronic data capture
+  - redcap external module
+license: GPL-3.0
