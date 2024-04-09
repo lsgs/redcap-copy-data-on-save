@@ -6,6 +6,14 @@ use ExternalModules\AbstractExternalModule;
 
 class CopyDataOnSave extends AbstractExternalModule {
 
+function redcap_every_page_top($project_id)
+    {
+        if (PAGE == 'ProjectSetup/index.php') {
+            if (isset($_GET['msg']) && $_GET['msg'] == 'copiedproject')
+                $this->redcap_module_save_configuration($project_id);
+        }
+    }
+
 	function redcap_save_record($project_id, $record=null, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
         global $Proj;
 		$settings = $this->getSubSettings('copy-config');
@@ -196,5 +204,31 @@ class CopyDataOnSave extends AbstractExternalModule {
             $destRecordId = $sourceProjectData[$record][$event_id][$recIdField];
         }
         return $destRecordId;
+    }
+
+	/**
+     * redcap_module_save_configuration
+     * Look up report ids and populate report-title settings
+     * Look up user/profile and populate message-from-address settings
+     * @param string $project_id
+     */
+    public function redcap_module_save_configuration($project_id)
+    {
+        if (is_null($project_id) || !is_numeric($project_id)) {
+            return;
+        } // only continue for project-level config changes
+        $project_settings = $this->getProjectSettings($project_id);
+
+        $update = false;
+        if (!$project_settings['copy-enabled']) {
+            return;
+        } else {
+            $project_settings['copy-enabled'] = [false];
+            $update = true;
+        }
+        if ($update) {
+            $this->setProjectSettings($project_settings, $project_id);
+        }
+        return;
     }
 }
