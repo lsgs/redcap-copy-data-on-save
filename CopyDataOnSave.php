@@ -6,7 +6,7 @@ use ExternalModules\AbstractExternalModule;
 
 class CopyDataOnSave extends AbstractExternalModule {
 
-function redcap_every_page_top($project_id)
+ function redcap_every_page_top($project_id)
     {
         if (PAGE == 'ProjectSetup/index.php') {
             if (isset($_GET['msg']) && $_GET['msg'] == 'copiedproject')
@@ -136,6 +136,24 @@ function redcap_every_page_top($project_id)
                         $saveArray[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df] = $valueToCopy;
                     } else {
                         $saveArray[$destRecord][$destEventId][$df] = $valueToCopy;
+               if ($Proj->metadata[$df]['element_type'] == 'file') {
+                            $doc_id =  $valueToCopy;
+                            $field_name = $Proj->metadata[$df]['field_name'];
+                       $checkSQl = "SELECT COUNT(*) AS count FROM redcap_data WHERE record = $record AND field_name = '$field_name'";
+                       $checkSQlCount = db_query($checkSQl);
+                       $countResult = db_fetch_assoc($checkSQlCount);
+                       $count = $countResult['count']; // Extracting count value
+
+                if ($count == 0) {
+                    $new_doc_id = copyFile($doc_id, $project_id);
+                    $saveArray[$destRecord][$destEventId][$df] = $new_doc_id;
+                    $sql = "INSERT INTO redcap_data (project_id, event_id, record, field_name, value) VALUES ($project_id, $event_id, '" . db_escape($record) . "', '$field_name', '" . db_escape($new_doc_id) . "')";
+                    db_query($sql);
+                }
+                        } else {
+                            $saveArray[$destRecord][$destEventId][$df] = $valueToCopy;
+                        }
+			    
                     }
                 }
             }
@@ -206,7 +224,8 @@ function redcap_every_page_top($project_id)
         return $destRecordId;
     }
 
-	/**
+
+    /**
      * redcap_module_save_configuration
      * Look up report ids and populate report-title settings
      * Look up user/profile and populate message-from-address settings
@@ -214,20 +233,22 @@ function redcap_every_page_top($project_id)
      */
     public function redcap_module_save_configuration($project_id)
     {
-        if (is_null($project_id) || !is_numeric($project_id)) {
-            return;
-        } // only continue for project-level config changes
-        $project_settings = $this->getProjectSettings($project_id);
+        if (isset($_GET['msg']) && $_GET['msg'] == 'copiedproject') {
+            if (is_null($project_id) || !is_numeric($project_id)) {
+                return;
+            } // only continue for project-level config changes
+            $project_settings = $this->getProjectSettings($project_id);
 
-        $update = false;
-        if (!$project_settings['copy-enabled']) {
-            return;
-        } else {
-            $project_settings['copy-enabled'] = [false];
-            $update = true;
-        }
-        if ($update) {
-            $this->setProjectSettings($project_settings, $project_id);
+            $update = false;
+            if (!$project_settings['copy-enabled']) {
+                return;
+            } else {
+                $project_settings['copy-enabled'] = [false];
+                $update = true;
+            }
+            if ($update) {
+                $this->setProjectSettings($project_settings, $project_id);
+            }
         }
         return;
     }
