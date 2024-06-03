@@ -6,19 +6,11 @@ use ExternalModules\AbstractExternalModule;
 
 class CopyDataOnSave extends AbstractExternalModule {
 
- function redcap_every_page_top($project_id)
-    {
-        if (PAGE == 'ProjectSetup/index.php') {
-            if (isset($_GET['msg']) && $_GET['msg'] == 'copiedproject')
-                $this->redcap_module_save_configuration($project_id);
-        }
-    }
-
-	function redcap_save_record($project_id, $record=null, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
+	public function redcap_save_record($project_id, $record=null, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
         global $Proj;
 		$settings = $this->getSubSettings('copy-config');
 
-        foreach($settings as $instruction) {
+        foreach($settings as $instructionNum => $instruction) {
             if (!$instruction['copy-enabled']) continue; 
             if (array_search($instrument, $instruction['trigger-form'])===false) continue;
             if (!empty($instruction['trigger-logic']) && true!==\REDCap::evaluateLogic($instruction['trigger-logic'], $project_id, $record, $event_id, $repeat_instance)) continue;
@@ -51,6 +43,10 @@ class CopyDataOnSave extends AbstractExternalModule {
                 $destEventId = $destProj->firstEventId;
             } else {
                 $destEventId = $destProj->getEventIdUsingUniqueEventName($destEventName);
+                if (!$destEventId) {
+                    $this->log("Error in Copy Data on Save instruction #$instructionNum configration: invalid destination event '$destEventName'");
+                    continue;
+                }
             }
 
             $readDestFields[] = $destProj->table_pk;
@@ -66,7 +62,8 @@ class CopyDataOnSave extends AbstractExternalModule {
             if (!$recCreate && !array_key_exists($destRecord, $destProjectData)) continue; // create new record disabled
 
             $saveArray = array();
-            $saveValues = array();
+            $fileCopies = array();
+            $fileDeletes = array();
             $overwriteBlocked = array();
             foreach ($copyFields as $cf) {
                 $sf = $cf['source-field'];
@@ -132,35 +129,50 @@ class CopyDataOnSave extends AbstractExternalModule {
                 if ($valueInDest!='' && $noOverwrite) {
                     $overwriteBlocked[] = "$sf=>$df"; // update only if destination empty
                 } else {
+                    if ($Proj->metadata[$df]['element_type'] == 'file') {
+                        // for file fields as destination need to copy the source file and get a new doc id
+                        // if destination already has a file, only copy if the file has changed
+                        if ($valueInDest!='') {
+                            list ($sourceMimeType, $sourceDocName, $sourceFileContent) = \REDCap::getFile($valueToCopy);
+                            list ($destMimeType, $destDocName, $destFileContent) = \REDCap::getFile($valueInDest);
+                            $fileChanged = ($sourceMimeType!=$destMimeType || $sourceDocName!=$destDocName || $sourceFileContent!=$destFileContent);
+                        } else {
+                            $fileChanged = true;
+                        }
+
+                        if ($fileChanged) {
+                            if ($valueToCopy=='' && $valueInDest!='') {
+                                $fileDeletes[] = array(
+                                    'doc_id' => $valueInDest, 
+                                    'project_id' => $destProjectId, 
+                                    'record' => $destRecord, 
+                                    'field_name' => $df, 
+                                    'event_id' => $destEventId, 
+                                    'repeat_instance' => $destInstance
+                                );
+                            } else {
+                                $fileCopies[] = array(
+                                    'doc_id' => \REDCap::copyFile($valueToCopy, $project_id), 
+                                    'project_id' => $destProjectId, 
+                                    'record' => $destRecord, 
+                                    'field_name' => $df, 
+                                    'event_id' => $destEventId, 
+                                    'repeat_instance' => $destInstance
+                                );
+                            }
+                        }
+                    }
                     if ($rptFrmInDest || $rptEvtInDest) {
                         $saveArray[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df] = $valueToCopy;
                     } else {
                         $saveArray[$destRecord][$destEventId][$df] = $valueToCopy;
-               if ($Proj->metadata[$df]['element_type'] == 'file') {
-                            $doc_id =  $valueToCopy;
-                            $field_name = $Proj->metadata[$df]['field_name'];
-                       $checkSQl = "SELECT COUNT(*) AS count FROM redcap_data WHERE record = $record AND field_name = '$field_name'";
-                       $checkSQlCount = db_query($checkSQl);
-                       $countResult = db_fetch_assoc($checkSQlCount);
-                       $count = $countResult['count']; // Extracting count value
-
-                if ($count == 0) {
-                    $new_doc_id = copyFile($doc_id, $project_id);
-                    $saveArray[$destRecord][$destEventId][$df] = $new_doc_id;
-                    $sql = "INSERT INTO redcap_data (project_id, event_id, record, field_name, value) VALUES ($project_id, $event_id, '" . db_escape($record) . "', '$field_name', '" . db_escape($new_doc_id) . "')";
-                    db_query($sql);
-                }
-                        } else {
-                            $saveArray[$destRecord][$destEventId][$df] = $valueToCopy;
-                        }
-			    
                     }
                 }
             }
 
             switch ("$dagOption") {
                 case "1": // dest same as source
-                    $saveArray[$destRecord][$destProj->firstEventId]['redcap_data_access_group'] = $sourceProjectData[$record][$event_id]['redcap_data_access_group'];
+                    $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $sourceProjectData[$record][$event_id]['redcap_data_access_group'];
                     break;
                 case "2": // map
                     $sdag = $sourceProjectData[$record][$event_id]['redcap_data_access_group'];
@@ -173,7 +185,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                             }
                         }
                     }
-                    $saveArray[$destRecord][$destProj->firstEventId]['redcap_data_access_group'] = $ddag;
+                    $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $ddag;
                     break;
                 default: // ignore or n/a
                     break;
@@ -181,13 +193,41 @@ class CopyDataOnSave extends AbstractExternalModule {
 
             try {
                 $saveResult = \REDCap::saveData($destProjectId, 'array', $saveArray, 'overwrite');
+                foreach ($fileCopies as $copiedFile) {
+                    \REDCap::addFileToField(
+                        $copiedFile['doc_id'],
+                        $copiedFile['project_id'], 
+                        $copiedFile['record'], 
+                        $copiedFile['field_name'], 
+                        $copiedFile['event_id'], 
+                        $copiedFile['repeat_instance']
+                    );
+                }
+                foreach ($fileDeletes as $deletedFile) { 
+                    // No developer method for removing a file: DataEntry.php L5668 FILE UPLOAD FIELD: Set the file as "deleted" in redcap_edocs_metadata table
+                    $instance = ($deletedFile['instance'] > 1) ? "instance = ".$this->escape($deletedFile['instance']) : "instance is null";
+                    $sql_all[] = $sql = "update redcap_edocs_metadata e, redcap_data d left join redcap_data d2 
+                            on d2.project_id = d.project_id and d2.value = d.value and d2.field_name = d.field_name and d2.record != d.record
+                            set e.delete_date = ?
+                            where e.project_id = ? and e.project_id = d.project_id
+                            and d.field_name = ? and d.value = e.doc_id and d.record = ?
+                            and d.$instance 
+                            and e.delete_date is null and d2.project_id is null and e.doc_id = ?";
+                    $this->query($sql, [NOW, $deletedFile['project_id'],$deletedFile['field_name'],$deletedFile['record'],$deletedFile['doc_id']]);
+                    
+                    $sql_all[] = $sql = "DELETE FROM redcap_data WHERE project_id = ? AND record = ? AND event_id = ? AND field_name = ? AND $instance ";
+                    $this->query($sql, [$deletedFile['project_id'],$deletedFile['record'],$deletedFile['event_id'],$deletedFile['field_name']]);
+
+                    \Logging::logEvent(implode('\n',$sql_all), 'redcap_data', 'UPDATE', $deletedFile['record'], $deletedFile['field_name']." = ''", 'Update record');
+                }
             } catch (\Throwable $e) {
                 $saveResult = array('errors'=>$e->getMessage());
             }
 
             $title = "CopyDataOnSave module";
-            $detail = "Copy from: record=$record, event=$event_id, instrument=$instrument, instance=$repeat_instance";
-            $detail .= " \nCopy to: project_id=$destProjectId, record=$destRecord";
+            $detail = "Instruction #".$instructionNum+1;
+            $detail .= " \nCopy from: record=$record, event=$event_id, instrument=$instrument, instance=$repeat_instance";
+            $detail .= " \nCopy to: project_id=$destProjectId, record=$destRecord, event=$destEventId, instance=$destInstance";
     
             if ((is_array($saveResult['errors']) && count($saveResult['errors'])>0) || 
                 (!is_array($saveResult['errors']) && !empty($saveResult['errors'])) ) {
@@ -200,6 +240,30 @@ class CopyDataOnSave extends AbstractExternalModule {
             }
         }
 	}
+
+    /**
+     * redcap_module_project_enable($version, $project_id)
+     * When enabling the module on a project, check for existing settings (e.g. if this enabling module in a copy of another project).
+     * If settings are found and the destination project is not the same as the current project then disable the rule and remove the project as a safety measure.
+     * @param string $version
+     * @param string $project_id
+     * @return void
+     */
+    public function redcap_module_project_enable($version, $project_id)
+    {
+        $project_settings = $this->getProjectSettings($project_id);
+        $settings = $this->getSubSettings('copy-config');
+
+        foreach($settings as $key => $instruction) {
+            $enabled = $instruction['copy-enabled'];
+            $destPid = $instruction['dest-project'];
+            if ($enabled && $destPid!=$project_id) { // for active rules pointing at other projects - deactivate and remove project
+                $project_settings['copy-enabled'][$key] = false;
+                $project_settings['dest-project'][$key] = null;
+                $this->setProjectSettings($project_settings, $project_id);
+            }
+        }
+    }
 
     /**
      * setDestinationRecordId
@@ -222,34 +286,5 @@ class CopyDataOnSave extends AbstractExternalModule {
             $destRecordId = $sourceProjectData[$record][$event_id][$recIdField];
         }
         return $destRecordId;
-    }
-
-
-    /**
-     * redcap_module_save_configuration
-     * Look up report ids and populate report-title settings
-     * Look up user/profile and populate message-from-address settings
-     * @param string $project_id
-     */
-    public function redcap_module_save_configuration($project_id)
-    {
-        if (isset($_GET['msg']) && $_GET['msg'] == 'copiedproject') {
-            if (is_null($project_id) || !is_numeric($project_id)) {
-                return;
-            } // only continue for project-level config changes
-            $project_settings = $this->getProjectSettings($project_id);
-
-            $update = false;
-            if (!$project_settings['copy-enabled']) {
-                return;
-            } else {
-                $project_settings['copy-enabled'] = [false];
-                $update = true;
-            }
-            if ($update) {
-                $this->setProjectSettings($project_settings, $project_id);
-            }
-        }
-        return;
     }
 }

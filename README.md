@@ -21,10 +21,22 @@ Behaviour with repeating data is dependent on whether the field is repeating in 
 
 \* Note that this will create a new instance *every time the rule is triggered*. Select the "only if empty" option to create a new instance only when the value copied is different to the value in the current highest-numbered instance. This mode is like an audit trail - it gives a history of values for a field. 
 
+## File Fields
+
+Copying for file fields is supported from v1.2.0 of the module. New versions of source field files will be created and saved to the destination field when a change in file name, type, or contents is detected.
+
+## Enabling the Module with Existing Configurations
+
+From v1.2.0, when you enable the module and existing configurations are present, such as following the creation of a project via copying another where the module is in use, certain configuration settings are automatically adjusted to reduce the risk of data being copied to an incorrect project. For example, it is not desirable for data to be copied back to a Production status project from a copy made of it for testing purposes.
+
+For instructions that are enabled, and where the destination project is different to the source project: 
+* *Enabled?* will be set to `false`, and
+* *Destination project* will be deleted (set to empty)
+
 ## Limitations
 
 * Data may be copied *from* fields only in the same event as the triggering form.
-* Data may be copied *to* fields in a single event. To copy to multiple events set up a trigger/rule for each event.
+* Data may be copied *to* fields in a single event. To copy to multiple events set up a trigger/rule for each destination event.
 * Copying data occurs when a data entry form or survey page is saved. Copying is not triggered for data imports.
 
 ## Configuration
