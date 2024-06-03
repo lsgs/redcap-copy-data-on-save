@@ -6,9 +6,9 @@ use ExternalModules\AbstractExternalModule;
 
 class CopyDataOnSave extends AbstractExternalModule {
 
-	public function redcap_save_record($project_id, $record=null, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
+    public function redcap_save_record($project_id, $record=null, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
         global $Proj;
-		$settings = $this->getSubSettings('copy-config');
+        $settings = $this->getSubSettings('copy-config');
 
         foreach($settings as $instructionNum => $instruction) {
             if (!$instruction['copy-enabled']) continue; 
@@ -225,7 +225,7 @@ class CopyDataOnSave extends AbstractExternalModule {
             }
 
             $title = "CopyDataOnSave module";
-            $detail = "Instruction #".$instructionNum+1;
+            $detail = "Instruction #".($instructionNum+1);
             $detail .= " \nCopy from: record=$record, event=$event_id, instrument=$instrument, instance=$repeat_instance";
             $detail .= " \nCopy to: project_id=$destProjectId, record=$destRecord, event=$destEventId, instance=$destInstance";
     
