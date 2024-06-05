@@ -203,10 +203,11 @@ class CopyDataOnSave extends AbstractExternalModule {
                         $copiedFile['repeat_instance']
                     );
                 }
+                $redcap_data = \REDCap::getDataTable($destProjectId);
                 foreach ($fileDeletes as $deletedFile) { 
                     // No developer method for removing a file: DataEntry.php L5668 FILE UPLOAD FIELD: Set the file as "deleted" in redcap_edocs_metadata table
                     $instance = ($deletedFile['instance'] > 1) ? "instance = ".$this->escape($deletedFile['instance']) : "instance is null";
-                    $sql_all[] = $sql = "update redcap_edocs_metadata e, redcap_data d left join redcap_data d2 
+                    $sql_all[] = $sql = "update redcap_edocs_metadata e, $redcap_data d left join $redcap_data d2 
                             on d2.project_id = d.project_id and d2.value = d.value and d2.field_name = d.field_name and d2.record != d.record
                             set e.delete_date = ?
                             where e.project_id = ? and e.project_id = d.project_id
@@ -215,7 +216,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                             and e.delete_date is null and d2.project_id is null and e.doc_id = ?";
                     $this->query($sql, [NOW, $deletedFile['project_id'],$deletedFile['field_name'],$deletedFile['record'],$deletedFile['doc_id']]);
                     
-                    $sql_all[] = $sql = "DELETE FROM redcap_data WHERE project_id = ? AND record = ? AND event_id = ? AND field_name = ? AND $instance ";
+                    $sql_all[] = $sql = "DELETE FROM $redcap_data WHERE project_id = ? AND record = ? AND event_id = ? AND field_name = ? AND $instance ";
                     $this->query($sql, [$deletedFile['project_id'],$deletedFile['record'],$deletedFile['event_id'],$deletedFile['field_name']]);
 
                     \Logging::logEvent(implode('\n',$sql_all), 'redcap_data', 'UPDATE', $deletedFile['record'], $deletedFile['field_name']." = ''", 'Update record');
