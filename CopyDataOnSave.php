@@ -203,7 +203,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                         $copiedFile['repeat_instance']
                     );
                 }
-                $redcap_data = method_exists('\REDCap', 'getDataTable') ? \REDCap::getDataTable($this->pid) : "redcap_data";
+                $redcap_data = method_exists('\REDCap', 'getDataTable') ? \REDCap::getDataTable($destProjectId) : "redcap_data";
                 foreach ($fileDeletes as $deletedFile) { 
                     // No developer method for removing a file: DataEntry.php L5668 FILE UPLOAD FIELD: Set the file as "deleted" in redcap_edocs_metadata table
                     $instance = ($deletedFile['instance'] > 1) ? "instance = ".$this->escape($deletedFile['instance']) : "instance is null";
