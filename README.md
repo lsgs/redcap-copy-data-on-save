@@ -56,11 +56,15 @@ For instructions that are enabled, and where the destination project is differen
 **Destination event name**
 * *Optional*: the unique event name of the event to copy data to in the destination. Leave empty if the destination is not longitudinal or to copy to the first event.
 
-**Field for record id**
-* Select the field in the source project that will be utilised as the record id for the copied data. If the records are to be named the same in source and destination then select the first field.
-	
-**Create destination records**
-* Set whether the process should create a record in the destination project if it does not already exist.
+**Field containing destination record id**
+* Field containing record id for destination project. The value from this field is used to locate the corresponding record in the destination project using the mechanism specified below.
+    
+**Record matching option**
+* Options for locating a matched record in the destination project and for whether to create new 
+    0. Match record id (do not create): Copy to record id saved to the field specified above. If no matching record found then do nothing.
+    1. Match record id (create matching): Copy to record id saved to the field specified above. If no matching record found then create one with matching record id.
+    2. Match record id (create auto-numbered): Copy to record id saved to the field specified above. If no value is present in the field then create an auto-numbered record in the destination and save the created record id to the field specified above. If a value is present and does not match a record in the destination, do nothing.
+    3. Look up via secondary unique field: Find a record with the value from the field specified above in the secondary unique field of the destination project. If no match is found, do nothing. (Note: it is assumed that the secondary unique field is present in the first event.)
 
 **Data Access Group option**
 * Select how the DAG of the copied record should be utilised.

@@ -5,9 +5,16 @@ namespace MCRI\CopyDataOnSave;
 use ExternalModules\AbstractExternalModule;
 
 class CopyDataOnSave extends AbstractExternalModule {
+    protected $sourceProj;
+    protected $sourceProjectData;
+    protected $destProj;
 
     public function redcap_save_record($project_id, $record=null, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
         global $Proj;
+
+        if ($this->getProjectSetting('delay') && $this->delayModuleExecution()) return; 
+
+        $this->sourceProj = $Proj;
         $settings = $this->getSubSettings('copy-config');
 
         foreach($settings as $instructionNum => $instruction) {
@@ -18,7 +25,7 @@ class CopyDataOnSave extends AbstractExternalModule {
             $destProjectId = $instruction['dest-project'];
             $destEventName = $instruction['dest-event'];
             $recIdField = $instruction['record-id-field'];
-            $recCreate = $instruction['record-create'];
+            $recMatchOpt = intval($instruction['record-create']);
             $dagOption = $instruction['dag-option'];
             $dagMap = $instruction['dag-map'];
             $copyFields = $instruction['copy-fields'];
@@ -30,26 +37,44 @@ class CopyDataOnSave extends AbstractExternalModule {
                 $readDestFields[] = $cf['dest-field'];
             }
 
-            $sourceProjectData = \REDCap::getData(array(
+            $this->sourceProjectData = \REDCap::getData(array(
                 'return_format' => 'array', 
                 'records' => $record, 
                 'fields' => $readSourceFields,
                 'exportDataAccessGroups' => true
             ));
 
-            $destProj = new \Project($destProjectId);
-            $destRecord = $this->getDestinationRecordId($record, $event_id, $repeat_instance, $recIdField, $sourceProjectData);
-            if (empty($destEventName)) {
-                $destEventId = $destProj->firstEventId;
+            $this->destProj = new \Project($destProjectId);
+
+            $matchValue = $this->getMatchValueForLookup($record, $event_id, $repeat_instance, $recIdField);
+            $destRecord = $this->getDestinationRecordId($recMatchOpt, $matchValue);
+            
+            if ($recMatchOpt==0 || $recMatchOpt==3) { 
+                // Match record id (do not create) || Look up via secondary unique field
+                if ($destRecord=='') continue; // matching destination record not found, do not create
+
+            } else if ($recMatchOpt==2) { 
+                // Match record id (create auto-numbered)
+                if (!(($matchValue=='' && $destRecord!='') || $matchValue!='' && $matchValue==$destRecord)) continue; // to copy, either lookup field is empty and destination is next autonumbered, or lookup and dest match
+
+            } else if ($recMatchOpt==1) { 
+                // Match record id (create matching)
+                if ($record=='' || $record!=$destRecord) continue; // if have no id for source record then skip on, or if mismatch then something amiss
             } else {
-                $destEventId = $destProj->getEventIdUsingUniqueEventName($destEventName);
+                continue; // other options not implemented
+            }
+
+            if (empty($destEventName)) {
+                $destEventId = $this->destProj->firstEventId;
+            } else {
+                $destEventId = $this->destProj->getEventIdUsingUniqueEventName($destEventName);
                 if (!$destEventId) {
                     $this->log("Error in Copy Data on Save instruction #$instructionNum configration: invalid destination event '$destEventName'");
                     continue;
                 }
             }
 
-            $readDestFields[] = $destProj->table_pk;
+            $readDestFields[] = $this->destProj->table_pk;
 
             $destProjectData = \REDCap::getData(array(
                 'return_format' => 'array', 
@@ -59,7 +84,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 'exportDataAccessGroups' => true
             ));
 
-            if (!$recCreate && !array_key_exists($destRecord, $destProjectData)) continue; // create new record disabled
+            if (($recMatchOpt==0 || $recMatchOpt==3) && !array_key_exists($destRecord, $destProjectData)) continue; // do not create new record 
 
             $saveArray = array();
             $fileCopies = array();
@@ -70,18 +95,18 @@ class CopyDataOnSave extends AbstractExternalModule {
                 $df = $cf['dest-field'];
                 $noOverwrite = $cf['only-if-empty'];
 
-                $rptEvtInSource = $Proj->isRepeatingEvent($event_id);
-                $rptEvtInDest = $destProj->isRepeatingEvent($destEventId);
-                $rptFrmInSource = $Proj->isRepeatingForm($event_id, $Proj->metadata[$sf]['form_name']);
-                $rptFrmInDest = $destProj->isRepeatingForm($destEventId, $destProj->metadata[$df]['form_name']);
+                $rptEvtInSource = $this->sourceProj->isRepeatingEvent($event_id);
+                $rptEvtInDest = $this->destProj->isRepeatingEvent($destEventId);
+                $rptFrmInSource = $this->sourceProj->isRepeatingForm($event_id, $this->sourceProj->metadata[$sf]['form_name']);
+                $rptFrmInDest = $this->destProj->isRepeatingForm($destEventId, $this->destProj->metadata[$df]['form_name']);
                 
                 if ($rptFrmInSource) {
-                    $rptInstrumentKeySrc = $Proj->metadata[$sf]['form_name'];
+                    $rptInstrumentKeySrc = $this->sourceProj->metadata[$sf]['form_name'];
                 } else {
                     $rptInstrumentKeySrc = ($rptEvtInSource) ? '' : null;
                 }
                 if ($rptFrmInDest) {
-                    $rptInstrumentKeyDest = $destProj->metadata[$df]['form_name'];
+                    $rptInstrumentKeyDest = $this->destProj->metadata[$df]['form_name'];
                 } else {
                     $rptInstrumentKeyDest = ($rptEvtInDest) ? '' : null;
                 }
@@ -94,9 +119,9 @@ class CopyDataOnSave extends AbstractExternalModule {
                     Y    Y    Same instance
                 */
                 if ($rptFrmInSource || $rptEvtInSource) {
-                    $valueToCopy = $sourceProjectData[$record]['repeat_instances'][$event_id][$rptInstrumentKeySrc][$repeat_instance][$sf];
+                    $valueToCopy = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$rptInstrumentKeySrc][$repeat_instance][$sf];
                 } else {
-                    $valueToCopy = $sourceProjectData[$record][$event_id][$sf];
+                    $valueToCopy = $this->sourceProjectData[$record][$event_id][$sf];
                 }
 
                 if ($rptFrmInDest || $rptEvtInDest) {
@@ -129,7 +154,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 if ($valueInDest!='' && $noOverwrite) {
                     $overwriteBlocked[] = "$sf=>$df"; // update only if destination empty
                 } else {
-                    if ($Proj->metadata[$df]['element_type'] == 'file') {
+                    if ($this->sourceProj->metadata[$df]['element_type'] == 'file') {
                         // for file fields as destination need to copy the source file and get a new doc id
                         // if destination already has a file, only copy if the file has changed
                         if ($valueInDest!='') {
@@ -172,10 +197,10 @@ class CopyDataOnSave extends AbstractExternalModule {
 
             switch ("$dagOption") {
                 case "1": // dest same as source
-                    $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $sourceProjectData[$record][$event_id]['redcap_data_access_group'];
+                    $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $this->sourceProjectData[$record][$event_id]['redcap_data_access_group'];
                     break;
                 case "2": // map
-                    $sdag = $sourceProjectData[$record][$event_id]['redcap_data_access_group'];
+                    $sdag = $this->sourceProjectData[$record][$event_id]['redcap_data_access_group'];
                     $ddag = '';
                     if ($sdag!='') {
                         foreach ($dagMap as $dm) {
@@ -238,6 +263,25 @@ class CopyDataOnSave extends AbstractExternalModule {
             } else {
                 if (count($overwriteBlocked)) $detail .= " \nCopy to non-empty fields skipped: ".implode(',', $overwriteBlocked);
                 \REDCap::logEvent($title, $detail, '', $record, $event_id);
+
+                // if created autonumbered record, capture new id to lookup field
+                if ($recMatchOpt==2 && $destRecord!='') {
+                    $saveAuto = array(array(
+                        $this->sourceProj->table_pk => $record,
+                        $recIdField => $destRecord
+                    ));
+                    if ($this->sourceProj->longitudinal) {
+                        $saveAuto['redcap_event_name'] = \REDCap::getEventNames(true, false, $event_id);
+                    }
+                    if ($this->sourceProj->isRepeatingEvent($event_id)) {
+                        $saveAuto['redcap_repeat_instrument'] = '';
+                        $saveAuto['redcap_repeat_instance'] = $repeat_instance;
+                    } else if ($this->sourceProj->isRepeatingForm($event_id, $instrument)) {
+                        $saveAuto['redcap_repeat_instrument'] = $instrument;
+                        $saveAuto['redcap_repeat_instance'] = $repeat_instance;
+                    }
+                    $saveResult = \REDCap::saveData('json-array', $saveAuto);
+                }
             }
         }
 	}
@@ -267,25 +311,77 @@ class CopyDataOnSave extends AbstractExternalModule {
     }
 
     /**
-     * setDestinationRecordId
-     * Get the record id to use in the destination from the source data - supports using field from repeating form/event
+     * getMatchValueForLookup
+     * Find the source value to use for looking up the record in the destination
      * @param string $record
      * @param string $event_id
      * @param string $instance
      * @param string $recIdField
-     * @param string $sourceProjectData
+     * @return string
+     * @since 1.3.0
+     */
+    protected function getMatchValueForLookup($record, $event_id, $instance, $recIdField) {
+        $lookupRecordId = '';
+        try {
+            if ($this->sourceProj->isRepeatingEvent($event_id)) {
+                $lookupRecordId = $this->sourceProjectData[$record]['repeat_instances'][$event_id][''][$instance][$recIdField];
+            } else if ($this->sourceProj->isRepeatingForm($event_id, $this->sourceProj->metadata[$recIdField]['form_name'])) {
+                $lookupRecordId = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$this->sourceProj->metadata[$recIdField]['form_name']][$instance][$recIdField];
+            } else {
+                $lookupRecordId = $this->sourceProjectData[$record][$event_id][$recIdField];
+            }
+        } catch (\Throwable $th) { }
+        return $lookupRecordId;
+    }
+
+    /**
+     * setDestinationRecordId
+     * Get the record id to use in the destination from the source data based on the lookup value - supports using field from repeating form/event
+     * @param string $recMatchOpt Matching option
+     * @param string $lookupRecordId
      * @return string
      * @since 1.1.0
      */
-    protected function getDestinationRecordId($record, $event_id, $instance, $recIdField, $sourceProjectData) {
-        global $Proj;
-        if ($Proj->isRepeatingEvent($event_id)) {
-            $destRecordId = $sourceProjectData[$record]['repeat_instances'][$event_id][''][$instance][$recIdField];
-        } else if ($Proj->isRepeatingForm($event_id, $Proj->metadata[$recIdField]['form_name'])) {
-            $destRecordId = $sourceProjectData[$record]['repeat_instances'][$event_id][$Proj->metadata[$recIdField]['form_name']][$instance][$recIdField];
-        } else {
-            $destRecordId = $sourceProjectData[$record][$event_id][$recIdField];
+    protected function getDestinationRecordId($recMatchOpt, $lookupRecordId) {
+        $destRecordId = '';
+        $destData = array();
+        if ($lookupRecordId!='') {
+            $destFields = array();
+            $destFields[] = $this->destProj->table_pk;
+            if (!empty($this->destProj->project['secondary_pk'])) $destFields[] = $this->destProj->project['secondary_pk'];
+
+            $params = array(
+                'format' => 'array',
+                'project_id' => $this->destProj->project_id,
+                'fields' => $destFields
+            );
+
+            if ($recMatchOpt=='3') {
+                $params['filterLogic'] = '[first-event-name]['.$this->destProj->project['secondary_pk']."]='$lookupRecordId'"; // assume 2nd id is in first event for now
+            } else {
+                $params['records'] = $lookupRecordId;
+            }
+
+            $destData = \REDCap::getData($params);
         }
+
+        switch ($recMatchOpt) {
+            case '0': // Match record id (do not create)
+                $destRecordId = (count($destData)) ? $lookupRecordId : ''; // return matched record id if already exists, empty if not
+                break;
+            case '1': // Match record id (create matching)
+                $destRecordId = $lookupRecordId; // use lookup value and create if not existing - match not required
+                break;
+            case '2': // Match record id (create auto-numbered)
+                $destRecordId = (count($destData)) ? $lookupRecordId : \REDCap::reserveNewRecordId($this->destProj->project_id); // return matched record id if already exists, reserve new if not
+                break;
+            case '3': // Look up via secondary unique field
+                $destRecordId = (count($destData)) ? array_key_first($destData) : ''; // return matched record id if second id found, empty if not
+                break;
+            default: 
+                break;
+        }
+
         return $destRecordId;
     }
 }

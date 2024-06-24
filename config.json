@@ -13,7 +13,7 @@
 	"project-settings": [
         {
             "key": "copy-config",
-            "name": "Copy Configuration",
+            "name": "<span class=\"fs-6 badge bg-primary\">Copy Configuration</span>",
             "required": false,
             "type": "sub_settings",
             "repeatable": true,
@@ -58,15 +58,21 @@
                     "type": "descriptive"
                 },
                 {
-                    "name": "Field containing record id for destination<br>(If record id in destination to match record id in source then select first field.)",
+                    "name": "Field containing record id for destination<br>(Use the value from this field to find the record in the destination project.)",
                     "key": "record-id-field",
                     "required": true,
                     "type": "field-list"
                 },
                 {
                     "key": "record-create",
-                    "name": "Create record if not present in destination?",
-                    "type": "checkbox"
+                    "name": "Record matching option<ul><li>Match record id (do not create):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then do nothing.</span></li><li>Match record id (create matching):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then create one with matching record id.</span></li><li>Match record id (create auto-numbered):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no value is present in the field then create an auto-numbered record in the destination and save the created record id to the field specified above. If a value is present and does not match a record in the destination, do nothing.</span></li><li>Look up via secondary unique field:<br><span class=\"text-muted\">Find a record with the value from the field specified above in the secondary unique field of the destination project. If no match is found, do nothing.</span></li></ul>",
+                    "type": "dropdown",
+                    "required": true,
+					"choices": [
+						{ "value": "0", "name": "Match record id (do not create)" },
+						{ "value": "1", "name": "Match record id (create matching)" },
+						{ "value": "2", "name": "Match record id (create auto-numbered)" },
+						{ "value": "3", "name": "Look up via secondary unique field" }					]
                 },
                 {
                     "name": "<div class=\"blue text-center\">DAG Options</div>",
@@ -140,6 +146,16 @@
                     ]
 				}
 			]
-		}
+		},
+        {
+            "name": "<div class=\"mt-4 gray text-center\" style=\"width:733px;\">End of copy configuration instructions</div>",
+            "key": "spacer",
+            "type": "descriptive"
+        },
+        {
+            "name": "Delay module execution<br><span class=\"text-muted\">Use this option to ensure that data copying instructions above occur <em>after</em> other <code>redcap_save_record()</code> module process, such as \"Realtime Randomization\" or \"REDCap REST\" API calls",
+            "key": "delay",
+            "type": "checkbox"
+        }
     ]
 }
