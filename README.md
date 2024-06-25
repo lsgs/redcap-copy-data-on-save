@@ -1,5 +1,9 @@
 # Copy Data on Save
 
+Luke Stevens, Murdoch Children's Research Institute https://www.mcri.edu.au
+
+[https://github.com/lsgs/redcap-compy-data-on-save](https://github.com/lsgs/redcap-copy-data-on-save)
+
 ## Description
 
 This module enables data to be copied from one place to another when you save a form. You can set up multiple copy processes to different projects or even to other fields in the same project.
