@@ -59,7 +59,7 @@ class CopyDataOnSave extends AbstractExternalModule {
 
             } else if ($recMatchOpt==1) { 
                 // Match record id (create matching)
-                if ($record=='' || $record!=$destRecord) continue; // if have no id for source record then skip on, or if mismatch then something amiss
+                if ($destRecord=='') continue; // if have no id for destination then something amiss
             } else {
                 continue; // other options not implemented
             }
