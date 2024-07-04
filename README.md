@@ -2,7 +2,7 @@
 
 Luke Stevens, Murdoch Children's Research Institute https://www.mcri.edu.au
 
-[https://github.com/lsgs/redcap-compy-data-on-save](https://github.com/lsgs/redcap-copy-data-on-save)
+[https://github.com/lsgs/redcap-copy-data-on-save](https://github.com/lsgs/redcap-copy-data-on-save)
 
 ## Description
 
@@ -44,6 +44,9 @@ For instructions that are enabled, and where the destination project is differen
 * Copying data occurs when a data entry form or survey page is saved. Copying is not triggered for data imports.
 
 ## Configuration
+
+**Name / Description (Optional)**
+* Optionally provide a name/reference and description for each copy instruction.
 
 **Enabled?**
 * Check to enable the copy process. Uncheck to disable.
