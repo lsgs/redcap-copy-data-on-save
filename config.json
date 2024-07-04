@@ -18,6 +18,12 @@
             "type": "sub_settings",
             "repeatable": true,
             "sub_settings": [
+				{
+					"key": "section-description",
+					"name": "Name / Description (Optional)",
+					"required": false,
+					"type": "textarea"
+				},
                 {
                     "key": "copy-enabled",
                     "name": "Enabled?",
