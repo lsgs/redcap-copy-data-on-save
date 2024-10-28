@@ -1,13 +1,21 @@
 <?php
-
+/**
+ * REDCap External Module: Copy Data on Save
+ * Copy data from one place to another when you save a form.
+ * Example URL: 
+ * /redcap_v13.10.6/ExternalModules/?prefix=copy_data_on_save&page=summary&pid=45
+ * @author Luke Stevens, Murdoch Children's Research Institute
+ */
 namespace MCRI\CopyDataOnSave;
 
 use ExternalModules\AbstractExternalModule;
 
 class CopyDataOnSave extends AbstractExternalModule {
+    protected const DISPLAY_MAX_FIELD_MAP = 5;
     protected $sourceProj;
     protected $sourceProjectData;
     protected $destProj;
+    protected $configArray;
 
     public function redcap_save_record($project_id, $record=null, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
         global $Proj;
@@ -232,17 +240,21 @@ class CopyDataOnSave extends AbstractExternalModule {
                 foreach ($fileDeletes as $deletedFile) { 
                     // No developer method for removing a file: DataEntry.php L5668 FILE UPLOAD FIELD: Set the file as "deleted" in redcap_edocs_metadata table
                     $instance = ($deletedFile['instance'] > 1) ? "instance = ".$this->escape($deletedFile['instance']) : "instance is null";
-                    $sql_all[] = $sql = "update redcap_edocs_metadata e, $redcap_data d left join $redcap_data d2 
+                    $sql = "update redcap_edocs_metadata e, $redcap_data d left join $redcap_data d2 
                             on d2.project_id = d.project_id and d2.value = d.value and d2.field_name = d.field_name and d2.record != d.record
                             set e.delete_date = ?
                             where e.project_id = ? and e.project_id = d.project_id
                             and d.field_name = ? and d.value = e.doc_id and d.record = ?
                             and d.$instance 
                             and e.delete_date is null and d2.project_id is null and e.doc_id = ?";
-                    $this->query($sql, [NOW, $deletedFile['project_id'],$deletedFile['field_name'],$deletedFile['record'],$deletedFile['doc_id']]);
-                    
-                    $sql_all[] = $sql = "DELETE FROM $redcap_data WHERE project_id = ? AND record = ? AND event_id = ? AND field_name = ? AND $instance ";
-                    $this->query($sql, [$deletedFile['project_id'],$deletedFile['record'],$deletedFile['event_id'],$deletedFile['field_name']]);
+                    $params = [NOW, $deletedFile['project_id'],$deletedFile['field_name'],$deletedFile['record'],$deletedFile['doc_id']];
+                    $sql_all[] = $this->getSqlForLogging($sql, $params);
+                    $this->query($sql, $params);
+
+                    $sql = "DELETE FROM $redcap_data WHERE project_id = ? AND record = ? AND event_id = ? AND field_name = ? AND $instance ";
+                    $params = [$deletedFile['project_id'],$deletedFile['record'],$deletedFile['event_id'],$deletedFile['field_name']];
+                    $sql_all[] = $this->getSqlForLogging($sql, $params);
+                    $this->query($sql, $params);
 
                     \Logging::logEvent(implode('\n',$sql_all), 'redcap_data', 'UPDATE', $deletedFile['record'], $deletedFile['field_name']." = ''", 'Update record');
                 }
@@ -254,12 +266,14 @@ class CopyDataOnSave extends AbstractExternalModule {
             $detail = "Instruction #".($instructionNum+1);
             $detail .= " \nCopy from: record=$record, event=$event_id, instrument=$instrument, instance=$repeat_instance";
             $detail .= " \nCopy to: project_id=$destProjectId, record=$destRecord, event=$destEventId, instance=$destInstance";
-    
+            if ($this->getProjectSetting('log-copy-contents')) $detail .= " \Data: ".json_encode($saveArray);
+
             if ((is_array($saveResult['errors']) && count($saveResult['errors'])>0) || 
                 (!is_array($saveResult['errors']) && !empty($saveResult['errors'])) ) {
                 $title .= ": COPY FAILED ";
                 $detail .= " \n".print_r($saveResult['errors'], true);
                 \REDCap::logEvent($title, $detail, '', $record, $event_id);
+                $this->notify($title, $detail);
             } else {
                 if (count($overwriteBlocked)) $detail .= " \nCopy to non-empty fields skipped: ".implode(',', $overwriteBlocked);
                 \REDCap::logEvent($title, $detail, '', $record, $event_id);
@@ -383,5 +397,226 @@ class CopyDataOnSave extends AbstractExternalModule {
         }
 
         return $destRecordId;
+    }
+
+    /** 
+     * getSqlForLogging()
+     * Get SQL with ? placeholders replaced by parameter values for the purposes of logging 
+     * e.g. "select a from b where c=?" / ['d'] -> "select a from b where c='d'"
+     * @param string sql
+     * @param array params
+     * @return array sql with params inserted
+     */
+    protected function getSqlForLogging(string $sql, array $params) : string {
+        return implode('', array_map('implode', array_map(null, explode('?',$sql), array_map(fn($p):mixed=>(is_numeric($p))?$p:"'$p'",$params))));
+    }
+
+	/**
+	 * notify()
+	 */
+	protected function notify($subject, $bodyDetail) {
+		global $project_contact_email;
+        $bodyDetail = str_replace(PHP_EOL,'<br>',$bodyDetail);
+        $failEmails = $this->getProjectSetting('fail-alert-email');
+        if (is_array($failEmails) && count($failEmails)>0 && !empty($failEmails[0])) {
+            $email = new \Message();
+            $email->setFrom($project_contact_email);
+            $email->setTo(implode(';', $failEmails));
+            $email->setSubject($subject);
+            $email->setBody("$subject<br><br>$bodyDetail", true);
+            $email->send();
+        }
+    }
+
+    /**
+     * redcap_module_configuration_settings
+     * Triggered when the system or project configuration dialog is displayed for a given module.
+     * Allows dynamically modify and return the settings that will be displayed.
+     * @param string $project_id, $settings
+     */
+    public function redcap_module_configuration_settings($project_id, $settings) {
+        if (empty($project_id)) return;
+        foreach ($settings as $si => $sarray) {
+            if ($sarray['key']=='summary-page') {
+                $url = $this->getUrl('summary.php',false,false);
+                $settings[$si]['name'] = str_replace('href="#"', 'href="'.$url.'"', $settings[$si]['name']);
+                break;
+            }
+        }
+        return $settings;
+    }
+
+    protected function getConfigArray() {
+        if (!isset($this->configArray)) {
+            $this->configArray = $this->getConfig();
+        }
+        return $this->configArray;
+    }
+
+    protected function getChoicesAsArray(array $settingsArray, $findSetting) {
+        $return = null;
+        foreach ($settingsArray as $setting => $settingAttrs) {
+            if (is_array($settingAttrs) && array_key_exists('key', $settingAttrs) && $settingAttrs['key']==$findSetting) {
+                if (array_key_exists('choices', $settingAttrs)) {
+                    $return = array();
+                    foreach ($settingAttrs['choices'] as $choice) {
+                        $return[$choice['value']] = $choice['name'];
+                    }
+                }
+                break;
+            } else if (is_array($settingAttrs)) {
+                $return = $this->getChoicesAsArray($settingAttrs, $findSetting);
+            }
+            if (is_array($return)) break;
+        }
+        return $return;
+    }
+
+    protected function getLabelForConfigChoice($setting, $value) {
+        $label = $value;
+        $choices = $this->getChoicesAsArray($this->getConfigArray(), $setting);
+        if (is_array($choices) && array_key_exists($value, $choices)) {
+            $label = $choices[$value];
+        }
+        return $label;
+    }
+
+    /**
+     * summaryPage()
+     * Content for summary page showing table of copy instruction configurations
+     * 
+     */
+    public function summaryPage() {
+        $instructions = $this->getSubSettings('copy-config');
+        $columns = array(
+            array('title'=>'#','tdclass'=>'text-center','getter'=>function(array $instruction){ return '<span class="cdos-seq"></span>'; }),
+            array('title'=>'Description','tdclass'=>'text-center','getter'=>function(array $instruction){ 
+                $desc = $instruction['section-description'];
+                if (is_null($desc) || trim($desc=='')) {
+                    return '<i class="fas fa-minus text-muted"></i>';
+                } else {
+                    return '<span class="cdos-hidden">'.$this->escape($desc).'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fas fa-comment-dots mx-2"></i></button>';
+                }
+            }),
+            array('title'=>'Enabled','tdclass'=>'text-center','getter'=>function(array $instruction){ 
+                return '<i class="fas '.(($instruction['copy-enabled']) ? 'fa-check text-success' : 'fa-times text-danger').'"></i>';
+            }),
+            array('title'=>'Trigger Form(s)','tdclass'=>'text-center','getter'=>function(array $instruction){ 
+                $formList = array();
+                foreach ($instruction['trigger-form'] as $form) {
+                    $formList[] = "<span class='badge bg-primary'>$form</span>";
+                }
+                return implode('<br>', $formList); 
+            }),
+            array('title'=>'Trigger Logic','tdclass'=>'text-center','getter'=>function(array $instruction){ 
+                $logic = $instruction['trigger-logic'];
+                if (is_null($logic) || trim($logic=='')) {
+                    return '<i class="fas fa-minus text-muted"></i>';
+                } else {
+                    return '<span class="cdos-hidden"><pre>'.\htmlspecialchars($logic,ENT_QUOTES).'</pre></span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Trigger Logic"><i class="fas fa-bolt mx-2"></i></button>';
+                }
+            }),
+            array('title'=>'Destination Project','tdclass'=>'text-center','getter'=>function(array $instruction){ 
+                $destPid = $instruction['dest-project'];
+                if (empty($destPid)) {
+                    return '<i class="fas fa-minus text-danger"></i>';
+                } else {
+                    $destProj = new \Project($destPid);
+                    $title = $this->escape($destProj->project['app_title']);
+                    return "<span class='badge bg-secondary' title='$title'>$destPid</span>";
+                }
+            }),
+            array('title'=>'Destination Event','tdclass'=>'text-center','getter'=>function(array $instruction){ 
+                return (empty($instruction['dest-event'])) ? '<i class="fas fa-minus text-muted"></i>' : '<span class="badge bg-secondary">'.$instruction['dest-event'].'</span>';
+            }),
+            array('title'=>'Record ID Field','tdclass'=>'text-center','getter'=>function(array $instruction){ 
+                return (empty($instruction['record-id-field'])) ? '<i class="fas fa-minus text-danger"></i>' : '<span class="badge bg-primary">'.$instruction['record-id-field'].'</span>';
+            }),
+            array('title'=>'Record Match Option','tdclass'=>'text-center','getter'=>function(array $instruction){ 
+                $val = $instruction['record-create'] ?? '0';
+                return '<span class="badge bg-secondary">'.$this->getLabelForConfigChoice('record-create', $val).'</span>';
+            }),
+            array('title'=>'DAG Option','tdclass'=>'text-center','getter'=>function(array $instruction){ 
+                $val = $instruction['dag-option'] ?? '0';
+                return '<span class="badge bg-primary">'.$this->getLabelForConfigChoice('dag-option', $val).'</span>';
+            }),
+            array('title'=>'Field Mappings (Can overwrite?)','tdclass'=>'cdos-field-map-col','getter'=>function(array $instruction){ 
+                $return = '';
+                $fieldList = array();
+                foreach ($instruction['copy-fields'] as $cf) {
+                    if (is_array($cf)) {
+                        $s = "<span class='badge bg-primary'>{$cf['source-field']}</span>";
+                        $d = "<span class='badge bg-secondary'>{$cf['dest-field']}</span>";
+                        $o = ($cf['only-if-empty']) ? '<i class="fas fa-times-circle text-secondary" title="Only if empty"></i>' : '<i class="fas fa-circle-check text-primary" title="Can overwrite"></i>';
+                        $fieldList[] = "<span class='nowrap'>$s<i class='fas fa-chevron-right text-muted mx-1'></i>$d $o</span>";
+                    }
+                }
+                if (count($fieldList) > self::DISPLAY_MAX_FIELD_MAP) {
+                    $firstN = array_slice($fieldList, 0, self::DISPLAY_MAX_FIELD_MAP);
+                    $return = '<span class="cdos-hidden"><div class="cdos-field-map-dialog-content">';
+                    for ($i=0; $i < count($fieldList); $i++) { 
+                        $return .= '<div class="my-2"><span class="cdos-field-map-index">'.($i+1).'.</span>'.$fieldList[$i].'</div>';
+                    }
+                    $return .= '</div></span>';
+                    $return .= implode('<br>', $firstN);
+                    $return .= '<br><button class="cdos-btn-show btn btn-xs btn-outline-success mt-2" title="View All Field Mappings"><i class="fas fa-copy mr-1"></i>+'.(count($fieldList)-self::DISPLAY_MAX_FIELD_MAP).'</button>';
+                } else {
+                    $return = implode('<br>', $fieldList);
+                }
+                return $return; 
+            })
+        );
+
+        echo '<div class="projhdr"><i class="fas fa-file-export mr-1"></i>Copy Data on Save: Summary of Copy Instructions</div>';
+        echo '<p>The table below shows the configuration settings for the copy instructions set up in this project.</p>';
+        echo '<div id="cdos-summary-table-container">';
+        echo '<table id="cdos-summary-table"><thead><tr>';
+
+        foreach ($columns as $col) {
+            $class = (empty($col['tdclass'])) ? '' : ' class="'.$this->escape($col['tdclass']).'"';
+            echo "<th$class>".\REDCap::filterHtml($col['title']).'</th>';
+        }
+
+        echo '</tr></thead><tbody>';
+
+        foreach ($instructions as $instruction) {
+            echo '<tr>';
+            foreach ($columns as $col) {
+                $class = (empty($col['tdclass'])) ? '' : ' class="'.$col['tdclass'].'"';
+                $contentGetterFunction = $col['getter'];
+                $cellContent = call_user_func($contentGetterFunction, $instruction);
+                echo "<td $class>".\REDCap::filterHtml($cellContent).'</td>';
+            }
+            echo '</tr>';
+        }
+        echo '</tbody></table></div>';
+        $this->initializeJavascriptModuleObject();
+        ?>
+        <style type="text/css">
+            #cdos-summary-table-container { max-width: 800px; }
+            .cdos-hidden { display: none; }
+            .cdos-field-map-dialog-content { max-height: 500px; overflow-y: scroll; }
+            .cdos-field-map-index { display: inline-block; width: 35px; }
+        </style>
+        <script type="text/javascript">
+            let module = <?=$this->getJavascriptModuleObjectName()?>;
+            module.show = function() {
+                let title = $(this).attr('title');
+                let content = $(this).siblings('span:first').html();
+                simpleDialog(content, title);
+            };
+
+            module.init = function() {
+                $('span.cdos-seq').each(function(i,e){ $(e).html(i+1) });
+                $('button.cdos-btn-show').on('click', module.show);
+                $('#cdos-summary-table').DataTable({
+                    paging: false
+                });
+            };
+            $(document).ready(function(){
+                module.init();
+            });
+        </script>
+        <?php
     }
 }

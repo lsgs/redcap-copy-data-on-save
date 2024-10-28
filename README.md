@@ -12,6 +12,8 @@ Copying the value of one field to multiple fields in the destination *is* suppor
 
 Enable and configure the module in the source project. No action is required in the destination project.
 
+There is a link button available in the configuration settings dialog that gives access where a table of the copy instruction configuration can be viewed.
+
 ## Repeating Data
 
 Behaviour with repeating data is dependent on whether the field is repeating in the source, or in the destination, or both, as follows:
@@ -74,7 +76,7 @@ For instructions that are enabled, and where the destination project is differen
     3. Look up via secondary unique field: Find a record with the value from the field specified above in the secondary unique field of the destination project. If no match is found, do nothing. (Note: it is assumed that the secondary unique field is present in the first event.)
 
 **Data Access Group option**
-* Select how the DAG of the copied record should be utilised.
+* Select how the *current* DAG of the copied record should be utilised.
     1. Ignore: do not set or update the DAG for the record in the destination project.
     2. Include DAG in copy: the unique DAG name for the source record's DAG will be included in the copy. Destination DAGs must have matching names for the copy to be successful.
     3. Map source DAGs to destination DAGs: specify the destination DAG to use for each source DAG. Multiple DAGs in the source project can be mapped to a single destination DAG.
@@ -89,6 +91,12 @@ For instructions that are enabled, and where the destination project is differen
 **Copy fields**
 * Pairs of fields mapping the source to the destination.
 * Select the "only if empty" checkbox if you want the copy to occur only for an initial value in the source field (i.e. copy the value only when the destination field is empty).
+* Note 1: you can update the destination record's DAG by writing to `redcap_data_access_group` as the destination field. 
+* Note 2: you can update data in a specific repeating event/form instance by writing appropriate values to `redcap_repeat_instrument` and `redcap_repeat_instance`. 
+
+### Failure Alert
+
+Optionally specify one or more email addresses to be alerted if a copy fails, for example due to field type or value incompatibility.
 
 ## Example
 

@@ -12,6 +12,16 @@
     "framework-version": 13,
 	"project-settings": [
         {
+            "key": "summary-page",
+            "name": "<div style=\"display:inline-block;width:392px;\">View summary of copy instructions:</div><div style=\"display:inline-block;width:200px;\"><a class=\"btn btn-sm btn-primaryrc\" style=\"color:#fff;\" target=\"_blank\" href=\"#\">Open<i class=\"fas fa-external-link-alt ml-1\"></i></a></div>",
+            "type": "descriptive"
+        },
+        {
+            "key": "section-header",
+            "name": "<div class=\"blue text-center\" style=\"position:relative;left:-8px;width:733px\">Copy Instructions</div>",
+            "type": "descriptive"
+        },
+        {
             "key": "copy-config",
             "name": "<span class=\"fs-6 badge bg-primary\">Copy Configuration</span>",
             "required": false,
@@ -154,14 +164,37 @@
 			]
 		},
         {
-            "name": "<div class=\"mt-4 gray text-center\" style=\"width:733px;\">End of copy configuration instructions</div>",
-            "key": "spacer",
+            "name": "<div class=\"my-2 gray text-center\" style=\"width:733px;\">End of copy configuration instructions</div>",
+            "key": "spacer-end-instructions",
+            "type": "descriptive"
+        },
+        {
+            "name": "<div class=\"my-2 gray text-center\" style=\"width:733px;\">Additional Configuration Options</div>",
+            "key": "spacer-other-options",
             "type": "descriptive"
         },
         {
             "name": "Delay module execution<br><span class=\"text-muted\">Use this option to ensure that data copying instructions above occur <em>after</em> other <code>redcap_save_record()</code> module process, such as \"Realtime Randomization\" or \"REDCap REST\" API calls",
             "key": "delay",
             "type": "checkbox"
+        },
+        {
+            "name": "Include save data in logging?<br><span class=\"text-muted\">Use this for troubleshooting/debugging only.</span>",
+            "key": "log-copy-contents",
+            "type": "checkbox",
+            "super-users-only": true
+        },
+        {
+            "key": "header-fail-alert",
+            "name": "<h4><span class='text-lg badge badge-lg badge-primary'>Failure Alerts</span></h4>Alert these people if process fails",
+            "type": "descriptive"
+        },
+        {
+            "key": "fail-alert-email",
+            "name": "Email address of failure alert recipient.",
+            "required": false,
+            "type": "email",
+            "repeatable": true
         }
     ]
 }
