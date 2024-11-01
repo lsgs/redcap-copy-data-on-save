@@ -9,7 +9,7 @@
             "institution": "Murdoch Children's Research Institute"
         }
     ],
-    "framework-version": 13,
+    "framework-version": 14,
 	"project-settings": [
         {
             "key": "summary-page",
@@ -191,7 +191,7 @@
         },
         {
             "key": "fail-alert-email",
-            "name": "Email address of failure alert recipient.",
+            "name": "Email address of failure alert recipient",
             "required": false,
             "type": "email",
             "repeatable": true
