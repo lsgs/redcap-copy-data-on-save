@@ -285,14 +285,14 @@ class CopyDataOnSave extends AbstractExternalModule {
                         $recIdField => $destRecord
                     ));
                     if ($this->sourceProj->longitudinal) {
-                        $saveAuto['redcap_event_name'] = \REDCap::getEventNames(true, false, $event_id);
+                        $saveAuto[0]['redcap_event_name'] = \REDCap::getEventNames(true, false, $event_id);
                     }
                     if ($this->sourceProj->isRepeatingEvent($event_id)) {
-                        $saveAuto['redcap_repeat_instrument'] = '';
-                        $saveAuto['redcap_repeat_instance'] = $repeat_instance;
+                        $saveAuto[0]['redcap_repeat_instrument'] = '';
+                        $saveAuto[0]['redcap_repeat_instance'] = $repeat_instance;
                     } else if ($this->sourceProj->isRepeatingForm($event_id, $instrument)) {
-                        $saveAuto['redcap_repeat_instrument'] = $instrument;
-                        $saveAuto['redcap_repeat_instance'] = $repeat_instance;
+                        $saveAuto[0]['redcap_repeat_instrument'] = $instrument;
+                        $saveAuto[0]['redcap_repeat_instance'] = $repeat_instance;
                     }
                     $saveResult = \REDCap::saveData('json-array', $saveAuto);
                 }
