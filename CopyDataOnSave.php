@@ -203,25 +203,34 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
             }
 
-            switch ("$dagOption") {
-                case "1": // dest same as source
-                    $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $this->sourceProjectData[$record][$event_id]['redcap_data_access_group'];
-                    break;
-                case "2": // map
-                    $sdag = $this->sourceProjectData[$record][$event_id]['redcap_data_access_group'];
-                    $ddag = '';
-                    if ($sdag!='') {
-                        foreach ($dagMap as $dm) {
-                            if ($sdag==\REDCap::getGroupNames(true, $dm['source-dag'])) {
-                                $ddag = $dm['dest-dag'];
-                                // break; // don't break so last wins, not first, if source dag specified more than once (same behaviour as for source fields)
+            if ($dagOption > 0) {
+                if ($Proj->isRepeatingEvent($event_id)) {
+                    $sdag = $this->sourceProjectData[$record]['repeat_instances'][$event_id][''][$repeat_instance]['redcap_data_access_group'] ?? '';
+                } else if ($Proj->isRepeatingForm($event_id, $instrument)) {
+                    $sdag = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$instrument][$repeat_instance]['redcap_data_access_group'] ?? '';
+                } else {
+                    $sdag = $this->sourceProjectData[$record][$event_id]['redcap_data_access_group'] ?? '';
+                }
+
+                switch ("$dagOption") {
+                    case "1": // dest same as source
+                        $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $sdag;
+                        break;
+                    case "2": // map
+                        $ddag = '';
+                        if ($sdag!='') {
+                            foreach ($dagMap as $dm) {
+                                if ($sdag==\REDCap::getGroupNames(true, $dm['source-dag'])) {
+                                    $ddag = $dm['dest-dag'];
+                                    // break; // don't break so last wins, not first, if source dag specified more than once (same behaviour as for source fields)
+                                }
                             }
                         }
-                    }
-                    $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $ddag;
-                    break;
-                default: // ignore or n/a
-                    break;
+                        $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $ddag;
+                        break;
+                    default: // ignore or n/a
+                        break;
+                }
             }
 
             try {
