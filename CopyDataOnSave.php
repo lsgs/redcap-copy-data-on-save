@@ -335,6 +335,7 @@ class CopyDataOnSave extends AbstractExternalModule {
      * @since 1.3.0
      */
     protected function getMatchValueForLookup($record, $event_id, $instance, $recIdField) {
+        if ($this->sourceProj->project_id===$this->destProj->project_id && $recIdField === $this->sourceProj->table_pk) return $record; // copying within the same project & record
         $lookupRecordId = '';
         try {
             if ($this->sourceProj->isRepeatingEvent($event_id)) {
