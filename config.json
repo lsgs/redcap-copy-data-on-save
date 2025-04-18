@@ -10,6 +10,7 @@
         }
     ],
     "framework-version": 15,
+	"system-settings": [ ],
 	"project-settings": [
         {
             "key": "summary-page",

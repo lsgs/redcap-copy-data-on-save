@@ -445,12 +445,13 @@ class CopyDataOnSave extends AbstractExternalModule {
      * @param string $project_id, $settings
      */
     public function redcap_module_configuration_settings($project_id, $settings) {
-        if (empty($project_id)) return;
-        foreach ($settings as $si => $sarray) {
-            if ($sarray['key']=='summary-page') {
-                $url = $this->getUrl('summary.php',false,false);
-                $settings[$si]['name'] = str_replace('href="#"', 'href="'.$url.'"', $settings[$si]['name']);
-                break;
+        if (!empty($project_id)) {
+            foreach ($settings as $si => $sarray) {
+                if ($sarray['key']=='summary-page') {
+                    $url = $this->getUrl('summary.php',false,false);
+                    $settings[$si]['name'] = str_replace('href="#"', 'href="'.$url.'"', $settings[$si]['name']);
+                    break;
+                }
             }
         }
         return $settings;
