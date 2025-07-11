@@ -162,7 +162,7 @@
                         },
 						{
 							"name": "Repeating to repeating: Create new instance?",
-							"key": "repeat-to-repeat-create-new-instance",
+							"key": "rtr-new-instance",
 							"type": "checkbox"
 						}
                     ]

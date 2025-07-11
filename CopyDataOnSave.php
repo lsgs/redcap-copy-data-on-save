@@ -120,7 +120,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 $sf = $cf['source-field'];
                 $df = $cf['dest-field'];
                 $noOverwrite = $cf['only-if-empty'];
-                $rtrNewInstance = $cf['repeat-to-repeat-create-new-instance'];
+                $rtrNewInstance = $cf['rtr-new-instance'];
 
                 $rptEvtInSource = $this->sourceProj->isRepeatingEvent($event_id);
                 $rptEvtInDest = $this->destProj->isRepeatingEvent($destEventId);
