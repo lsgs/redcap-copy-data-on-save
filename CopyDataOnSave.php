@@ -28,7 +28,8 @@ class CopyDataOnSave extends AbstractExternalModule {
         foreach($settings as $instructionNum => $instruction) {
             if (!$instruction['copy-enabled']) continue; 
             if (array_search($instrument, $instruction['trigger-form'])===false) continue;
-            if (!empty($instruction['trigger-logic']) && true!==\REDCap::evaluateLogic($instruction['trigger-logic'], $project_id, $record, $event_id, $repeat_instance)) continue;
+            $repeat_instrument = $Proj->isRepeatingForm($event_id, $instrument) ? $instrument : "";
+            if (!empty($instruction['trigger-logic']) && true!==\REDCap::evaluateLogic($instruction['trigger-logic'], $project_id, $record, $event_id, $repeat_instance, $repeat_instrument)) continue;
 
             $destProjectId = $instruction['dest-project'];
             $destEventName = $instruction['dest-event'];
