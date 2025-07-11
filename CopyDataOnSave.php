@@ -259,13 +259,13 @@ class CopyDataOnSave extends AbstractExternalModule {
                 foreach ($fileDeletes as $deletedFile) { 
                     // No developer method for removing a file: DataEntry.php L5668 FILE UPLOAD FIELD: Set the file as "deleted" in redcap_edocs_metadata table
                     $instance = ($deletedFile['instance'] > 1) ? "instance = ".$this->escape($deletedFile['instance']) : "instance is null";
-                    $sql = "update redcap_edocs_metadata e, $redcap_data d left join $redcap_data d2 
-                            on d2.project_id = d.project_id and d2.value = d.value and d2.field_name = d.field_name and d2.record != d.record
-                            set e.delete_date = ?
-                            where e.project_id = ? and e.project_id = d.project_id
-                            and d.field_name = ? and d.value = e.doc_id and d.record = ?
-                            and d.$instance 
-                            and e.delete_date is null and d2.project_id is null and e.doc_id = ?";
+                    $sql = "UPDATE redcap_edocs_metadata e, $redcap_data d LEFT JOIN $redcap_data d2 
+                            ON d2.project_id = d.project_id AND d2.value = d.value AND d2.field_name = d.field_name AND d2.record != d.record
+                            SET e.delete_date = ?
+                            WHERE e.project_id = ? AND e.project_id = d.project_id
+                            AND d.field_name = ? AND d.value = e.doc_id AND d.record = ?
+                            AND d.$instance 
+                            AND e.delete_date IS NULL AND d2.project_id IS NULL AND e.doc_id = ?";
                     $params = [NOW, $deletedFile['project_id'],$deletedFile['field_name'],$deletedFile['record'],$deletedFile['doc_id']];
                     $sql_all[] = $this->getSqlForLogging($sql, $params);
                     $this->query($sql, $params);
