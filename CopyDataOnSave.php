@@ -519,13 +519,13 @@ class CopyDataOnSave extends AbstractExternalModule {
             array('title'=>'Description','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $desc = $instruction['section-description'];
                 if (is_null($desc) || trim($desc=='')) {
-                    return '<i class="fas fa-minus text-muted"></i>';
+                    return '<i class="fa-solid fa-minus text-muted"></i>';
                 } else {
-                    return '<span class="cdos-hidden">'.$this->escape($desc).'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fas fa-comment-dots mx-2"></i></button>';
+                    return '<span class="cdos-hidden">'.$this->escape($desc).'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fa-solid fa-comment-dots mx-2"></i></button>';
                 }
             }),
             array('title'=>'Enabled','tdclass'=>'text-center','getter'=>function(array $instruction){ 
-                return '<i class="fas '.(($instruction['copy-enabled']) ? 'fa-check text-success' : 'fa-times text-danger').'"></i>';
+                return '<i class="fa-solid '.(($instruction['copy-enabled']) ? 'fa-check text-success' : 'fa-times text-danger').'"></i>';
             }),
             array('title'=>'Trigger Form(s)','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $formList = array();
@@ -537,15 +537,15 @@ class CopyDataOnSave extends AbstractExternalModule {
             array('title'=>'Trigger Logic','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $logic = $instruction['trigger-logic'];
                 if (is_null($logic) || trim($logic=='')) {
-                    return '<i class="fas fa-minus text-muted"></i>';
+                    return '<i class="fa-solid fa-minus text-muted"></i>';
                 } else {
-                    return '<span class="cdos-hidden"><pre>'.\htmlspecialchars($logic,ENT_QUOTES).'</pre></span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Trigger Logic"><i class="fas fa-bolt mx-2"></i></button>';
+                    return '<span class="cdos-hidden"><pre>'.\htmlspecialchars($logic,ENT_QUOTES).'</pre></span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Trigger Logic"><i class="fa-solid fa-bolt mx-2"></i></button>';
                 }
             }),
             array('title'=>'Destination Project','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $destPid = $instruction['dest-project'];
                 if (empty($destPid)) {
-                    return '<i class="fas fa-minus text-danger"></i>';
+                    return '<i class="fa-solid fa-minus text-danger"></i>';
                 } else {
                     $destProj = new \Project($destPid);
                     $title = $this->escape($destProj->project['app_title']);
@@ -553,10 +553,10 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
             }),
             array('title'=>'Destination Event','tdclass'=>'text-center','getter'=>function(array $instruction){ 
-                return (empty($instruction['dest-event'])) ? '<i class="fas fa-minus text-muted"></i>' : '<span class="badge bg-secondary">'.$instruction['dest-event'].'</span>';
+                return (empty($instruction['dest-event'])) ? '<i class="fa-solid fa-minus text-muted"></i>' : '<span class="badge bg-secondary">'.$instruction['dest-event'].'</span>';
             }),
             array('title'=>'Record ID Field','tdclass'=>'text-center','getter'=>function(array $instruction){ 
-                return (empty($instruction['record-id-field'])) ? '<i class="fas fa-minus text-danger"></i>' : '<span class="badge bg-primary">'.$instruction['record-id-field'].'</span>';
+                return (empty($instruction['record-id-field'])) ? '<i class="fa-solid fa-minus text-danger"></i>' : '<span class="badge bg-primary">'.$instruction['record-id-field'].'</span>';
             }),
             array('title'=>'Record Match Option','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $val = $instruction['record-create'] ?? '0';
@@ -573,27 +573,28 @@ class CopyDataOnSave extends AbstractExternalModule {
                     if (is_array($cf)) {
                         $s = "<span class='badge bg-primary'>{$cf['source-field']}</span>";
                         $d = "<span class='badge bg-secondary'>{$cf['dest-field']}</span>";
-                        $o = ($cf['only-if-empty']) ? '<i class="fas fa-times-circle text-secondary" title="Only if empty"></i>' : '<i class="fas fa-circle-check text-primary" title="Can overwrite"></i>';
-                        $fieldList[] = "<span class='nowrap'>$s<i class='fas fa-chevron-right text-muted mx-1'></i>$d $o</span>";
+                        $o = ($cf['only-if-empty']) ? '<i class="fa-solid fa-times-circle text-secondary" title="Only if empty"></i>' : '<i class="fa-solid fa-circle-check text-primary" title="Can overwrite"></i>';
+                        $n = ($cf['rtr-new-instance']) ? '<i class="fa-solid fa-square-plus text-success" title="Repeating to Repeating: Create new instance"></i>' : '';
+                        $fieldList[] = "<div class='nowrap my-1' style='display:flex;align-items:center;gap:2px;'>$s<i class='fa-solid fa-arrow-right-long text-muted'></i>$d $o $n</div>";
                     }
                 }
                 if (count($fieldList) > self::DISPLAY_MAX_FIELD_MAP) {
                     $firstN = array_slice($fieldList, 0, self::DISPLAY_MAX_FIELD_MAP);
                     $return = '<span class="cdos-hidden"><div class="cdos-field-map-dialog-content">';
                     for ($i=0; $i < count($fieldList); $i++) { 
-                        $return .= '<div class="my-2"><span class="cdos-field-map-index">'.($i+1).'.</span>'.$fieldList[$i].'</div>';
+                        $return .= '<div class="my-1" style="display:flex;align-items:center;"><span class="cdos-field-map-index">'.($i+1).'.</span>'.$fieldList[$i].'</div>';
                     }
                     $return .= '</div></span>';
-                    $return .= implode('<br>', $firstN);
-                    $return .= '<br><button class="cdos-btn-show btn btn-xs btn-outline-success mt-2" title="View All Field Mappings"><i class="fas fa-copy mr-1"></i>+'.(count($fieldList)-self::DISPLAY_MAX_FIELD_MAP).'</button>';
+                    $return .= implode('', $firstN);
+                    $return .= '<button type="button" class="cdos-btn-show btn btn-xs btn-outline-success mt-1" title="View All Field Mappings"><i class="fa-solid fa-eye mr-1"></i>+'.(count($fieldList)-self::DISPLAY_MAX_FIELD_MAP).'</button>';
                 } else {
-                    $return = implode('<br>', $fieldList);
+                    $return = implode('', $fieldList);
                 }
                 return $return; 
             })
         );
 
-        echo '<div class="projhdr"><i class="fas fa-file-export mr-1"></i>Copy Data on Save: Summary of Copy Instructions</div>';
+        echo '<div class="projhdr"><i class="fa-solid fa-file-export mr-1"></i>Copy Data on Save: Summary of Copy Instructions</div>';
         echo '<p>The table below shows the configuration settings for the copy instructions set up in this project.</p>';
         echo '<div id="cdos-summary-table-container">';
         echo '<table id="cdos-summary-table"><thead><tr>';
@@ -623,6 +624,7 @@ class CopyDataOnSave extends AbstractExternalModule {
             .cdos-hidden { display: none; }
             .cdos-field-map-dialog-content { max-height: 500px; overflow-y: scroll; }
             .cdos-field-map-index { display: inline-block; width: 35px; }
+            #cdos-summary-table .badge { font-weight: normal; padding: 3px 5px; }
         </style>
         <script type="text/javascript">
             let module = <?=$this->getJavascriptModuleObjectName()?>;
