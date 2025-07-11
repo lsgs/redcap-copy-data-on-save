@@ -120,6 +120,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 $sf = $cf['source-field'];
                 $df = $cf['dest-field'];
                 $noOverwrite = $cf['only-if-empty'];
+                $rtrNewInstance = $cf['repeat-to-repeat-create-new-instance'];
 
                 $rptEvtInSource = $this->sourceProj->isRepeatingEvent($event_id);
                 $rptEvtInDest = $this->destProj->isRepeatingEvent($destEventId);
@@ -152,7 +153,7 @@ class CopyDataOnSave extends AbstractExternalModule {
 
                 if ($rptFrmInDest || $rptEvtInDest) {
                     if ($rptFrmInSource || $rptEvtInSource) {
-                        $destInstance = $repeat_instance; // rpt src -> rpt dest: same instance
+                        $destInstance = $rtrNewInstance ? 'new' : $repeat_instance; // rpt src -> rpt dest: same or new instance depending on flag 
                     } else {
                         if (is_array($destProjectData)
                                 && is_array($destProjectData[$destRecord])
@@ -171,7 +172,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                             $destInstance = 1;
                         }
                     }
-                    $valueInDest = $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
+                    $valueInDest = $destInstance == 'new' ? '' : $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
                 } else {
                     $destInstance = null;
                     $valueInDest = $destProjectData[$destRecord][$destEventId][$df];
@@ -231,19 +232,19 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
 
                 if ($dagOption == self::dagInclude) {
-                        $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $sdag;
+                    $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $sdag;
                 }
                 else if ($dagOption == self::dagMap) {
-                        $ddag = '';
-                        if ($sdag!='') {
-                            foreach ($dagMap as $dm) {
-                                if ($sdag==\REDCap::getGroupNames(true, $dm['source-dag'])) {
-                                    $ddag = $dm['dest-dag'];
+                    $ddag = '';
+                    if ($sdag!='') {
+                        foreach ($dagMap as $dm) {
+                            if ($sdag==\REDCap::getGroupNames(true, $dm['source-dag'])) {
+                                $ddag = $dm['dest-dag'];
                                 // Don't break so last wins, not first, if source dag specified more than once (same behaviour as for source fields)
-                                }
                             }
                         }
-                        $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $ddag;
+                    }
+                    $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $ddag;
                 }
             }
 
