@@ -17,6 +17,15 @@ class CopyDataOnSave extends AbstractExternalModule {
     protected $destProj;
     protected $configArray;
 
+	/** @var int Match record id (do not create) = 0 */
+	const rmoDoNotCreate = 0;
+	/** @var int Match record id (create matching) = 1 */
+	const rmoCreateMatching = 1;
+	/** @var int Match record id (create auto-numbered) = 2 */
+	const rmoCreateAutoNumbered = 2;
+	/** @var int Look up via secondary unique field = 3 */
+	const rmoLookupSUF = 3;
+
     public function redcap_save_record($project_id, $record=null, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
         global $Proj;
 
@@ -58,19 +67,19 @@ class CopyDataOnSave extends AbstractExternalModule {
             $matchValue = $this->getMatchValueForLookup($record, $event_id, $repeat_instance, $recIdField);
             $destRecord = $this->getDestinationRecordId($recMatchOpt, $matchValue);
             
-            if ($recMatchOpt==0 || $recMatchOpt==3) { 
-                // Match record id (do not create) || Look up via secondary unique field
-                if ($destRecord=='') continue; // matching destination record not found, do not create
+            if ($recMatchOpt==self::rmoDoNotCreate || $recMatchOpt==self::rmoLookupSUF) { 
+                // Matching destination record not found, do not create
+                if ($destRecord=='') continue; 
+            } else if ($recMatchOpt==self::rmoCreateAutoNumbered) { 
+                // To copy, either lookup field is empty and destination is next autonumbered, or lookup and dest match
+                if (!(($matchValue=='' && $destRecord!='') || $matchValue!='' && $matchValue==$destRecord)) continue;
 
-            } else if ($recMatchOpt==2) { 
-                // Match record id (create auto-numbered)
-                if (!(($matchValue=='' && $destRecord!='') || $matchValue!='' && $matchValue==$destRecord)) continue; // to copy, either lookup field is empty and destination is next autonumbered, or lookup and dest match
-
-            } else if ($recMatchOpt==1) { 
-                // Match record id (create matching)
-                if ($destRecord=='') continue; // if have no id for destination then something amiss
+            } else if ($recMatchOpt==self::rmoCreateMatching) { 
+                // If have no id for destination then something amiss
+                if ($destRecord=='') continue;
             } else {
-                continue; // other options not implemented
+                // Other options not implemented
+                continue;
             }
 
             if (empty($destEventName)) {
@@ -93,7 +102,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 'exportDataAccessGroups' => true
             ));
 
-            if (($recMatchOpt==0 || $recMatchOpt==3) && !array_key_exists($destRecord, $destProjectData)) continue; // do not create new record 
+            if (($recMatchOpt==self::rmoDoNotCreate || $recMatchOpt==self::rmoLookupSUF) && !array_key_exists($destRecord, $destProjectData)) continue; // do not create new record 
 
             $saveArray = array();
             $fileCopies = array();
@@ -125,7 +134,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                     N    N    Non-rpt
                     Y    N    Non-rpt
                     N    Y    New instance*  only-if-empty when ticked means new instance only if value not same as last instance
-                    Y    Y    Same instance
+                    Y    Y    Same instance (unless specified to create new instance)
                 */
                 if ($rptFrmInSource || $rptEvtInSource) {
                     $valueToCopy = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$rptInstrumentKeySrc][$repeat_instance][$sf];
@@ -289,7 +298,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 \REDCap::logEvent($title, $detail, '', $record, $event_id);
 
                 // if created autonumbered record, capture new id to lookup field
-                if ($recMatchOpt==2 && $destRecord!='') {
+                if ($recMatchOpt==self::rmoCreateAutoNumbered && $destRecord!='') {
                     $saveAuto = array(array(
                         $this->sourceProj->table_pk => $record,
                         $recIdField => $destRecord
@@ -360,9 +369,9 @@ class CopyDataOnSave extends AbstractExternalModule {
     }
 
     /**
-     * setDestinationRecordId
+     * getDestinationRecordId
      * Get the record id to use in the destination from the source data based on the lookup value - supports using field from repeating form/event
-     * @param string $recMatchOpt Matching option
+     * @param int $recMatchOpt Matching option
      * @param string $lookupRecordId
      * @return string
      * @since 1.1.0
@@ -381,7 +390,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 'fields' => $destFields
             );
 
-            if ($recMatchOpt=='3') {
+            if ($recMatchOpt==self::rmoLookupSUF) {
                 $params['filterLogic'] = '[first-event-name]['.$this->destProj->project['secondary_pk']."]='$lookupRecordId'"; // assume 2nd id is in first event for now
             } else {
                 $params['records'] = $lookupRecordId;
@@ -391,16 +400,16 @@ class CopyDataOnSave extends AbstractExternalModule {
         }
 
         switch ($recMatchOpt) {
-            case '0': // Match record id (do not create)
+            case self::rmoDoNotCreate: // Match record id (do not create)
                 $destRecordId = (count($destData)) ? $lookupRecordId : ''; // return matched record id if already exists, empty if not
                 break;
-            case '1': // Match record id (create matching)
+            case self::rmoCreateMatching: // Match record id (create matching)
                 $destRecordId = $lookupRecordId; // use lookup value and create if not existing - match not required
                 break;
-            case '2': // Match record id (create auto-numbered)
+            case self::rmoCreateAutoNumbered: // Match record id (create auto-numbered)
                 $destRecordId = (count($destData)) ? $lookupRecordId : \REDCap::reserveNewRecordId($this->destProj->project_id); // return matched record id if already exists, reserve new if not
                 break;
-            case '3': // Look up via secondary unique field
+            case self::rmoLookupSUF: // Look up via secondary unique field
                 $destRecordId = (count($destData)) ? array_key_first($destData) : ''; // return matched record id if second id found, empty if not
                 break;
             default: 
