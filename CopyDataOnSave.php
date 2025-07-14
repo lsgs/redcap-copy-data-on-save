@@ -66,8 +66,16 @@ class CopyDataOnSave extends AbstractExternalModule {
             }
 
             // when specifying instance number for destination, is field for instance repeating in the source?
-            $sourceInstanceFieldRpt = (is_null($sourceInstanceField)) ? false : $this->sourceProj->isRepeatingForm($event_id, $this->sourceProj->metadata[$sourceInstanceField]['form_name']);
+            $sourceInstanceFieldRpt = (is_null($sourceInstanceField)) 
+                ? false 
+                : $this->sourceProj->isRepeatingForm($event_id, $this->sourceProj->metadata[$sourceInstanceField]['form_name']);
 
+            if ($sourceInstanceFieldRpt) {
+                $sourceInstanceFieldRptFormKey = ($this->sourceProj->isRepeatingEvent($event_id)) 
+                    ? ''
+                    : $this->sourceProj->metadata[$sourceInstanceField]['form_name'];
+            }
+                
             $this->sourceProjectData = \REDCap::getData(array(
                 'return_format' => 'array', 
                 'records' => $record, 
@@ -109,7 +117,7 @@ class CopyDataOnSave extends AbstractExternalModule {
             if (is_null($sourceInstanceField)) {
                 $specifiedInstance = null;
             } else if ($sourceInstanceFieldRpt) {
-                $specifiedInstance = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$this->sourceProj->metadata[$sourceInstanceField]['form_name']][$repeat_instance][$sourceInstanceField];
+                $specifiedInstance = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$sourceInstanceFieldRptFormKey][$repeat_instance][$sourceInstanceField];
             } else {
                 $specifiedInstance = $this->sourceProjectData[$record][$event_id][$sourceInstanceField];
             }       
