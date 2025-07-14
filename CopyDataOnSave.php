@@ -58,10 +58,15 @@ class CopyDataOnSave extends AbstractExternalModule {
 
             $readSourceFields[] = $recIdField;
 
+            $sourceInstanceField = null;
             foreach ($copyFields as $cf) {
                 $readSourceFields[] = $cf['source-field'];
                 $readDestFields[] = $cf['dest-field'];
+                if ($cf['dest-field']=='redcap_repeat_instance') $sourceInstanceField = $cf['source-field'];
             }
+
+            // when specifying instance number for destination, is field for instance repeating in the source?
+            $sourceInstanceFieldRpt = (is_null($sourceInstanceField)) ? false : $this->sourceProj->isRepeatingForm($event_id, $this->sourceProj->metadata[$sourceInstanceField]['form_name']);
 
             $this->sourceProjectData = \REDCap::getData(array(
                 'return_format' => 'array', 
@@ -100,6 +105,15 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
             }
 
+            // if field in copy instruction for destination instance (should be int or string 'new') then fix instance number (or 'new')
+            if (is_null($sourceInstanceField)) {
+                $specifiedInstance = null;
+            } else if ($sourceInstanceFieldRpt) {
+                $specifiedInstance = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$this->sourceProj->metadata[$sourceInstanceField]['form_name']][$repeat_instance][$sourceInstanceField];
+            } else {
+                $specifiedInstance = $this->sourceProjectData[$record][$event_id][$sourceInstanceField];
+            }       
+
             $readDestFields[] = $this->destProj->table_pk;
 
             $destProjectData = \REDCap::getData(array(
@@ -120,7 +134,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 $sf = $cf['source-field'];
                 $df = $cf['dest-field'];
                 $noOverwrite = $cf['only-if-empty'];
-                $rtrNewInstance = $cf['rtr-new-instance'];
+                if ($df=='redcap_repeat_instance') continue;
 
                 $rptEvtInSource = $this->sourceProj->isRepeatingEvent($event_id);
                 $rptEvtInDest = $this->destProj->isRepeatingEvent($destEventId);
@@ -152,8 +166,10 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
 
                 if ($rptFrmInDest || $rptEvtInDest) {
-                    if ($rptFrmInSource || $rptEvtInSource) {
-                        $destInstance = $rtrNewInstance ? 'new' : $repeat_instance; // rpt src -> rpt dest: same or new instance depending on flag 
+                    if (!is_null($specifiedInstance)) {
+                        $destInstance = $specifiedInstance; // copying _to_ repeating : set destination instance number
+                    } else if ($rptFrmInSource || $rptEvtInSource) {
+                        $destInstance = $repeat_instance; // rpt src -> rpt dest: same instance
                     } else {
                         if (is_array($destProjectData)
                                 && is_array($destProjectData[$destRecord])

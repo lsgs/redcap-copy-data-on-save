@@ -22,12 +22,12 @@ Behaviour with repeating data is dependent on whether the field is repeating in 
 | ------------- | ------------- | ---------------------- 
 | Not repeating | Not repeating | To non-repeating field 
 | Repeating     | Not repeating | To non-repeating field 
-| Not repeating | Repeating     | New instance \*        
+| Not repeating | Repeating     | New instance \* \*\*
 | Repeating     | Repeating     | Same instance \*\*
 
 \* Note that this will create a new instance *every time the rule is triggered*. Select the _"only if empty"_ option to create a new instance only when the value copied is different to the value in the current highest-numbered instance. This mode is like an audit trail - it gives a history of values for a field. 
 
-\*\* Unless the _"Repeating to repeating: Create new instance"_ option is selected. In this case, new form or event instances will be created in the destination project when both, source and destination fields are repeating, but for each copy configuration, at most one new form or event instance will be created (i.e., when destination fields are on the same repeating form (or event) in the destination project, only one new repeat instance will be created); this includes non-repeating source fields to repeating target field scenarios. Repeating to repeating fields take precedence of the not repeating to repeating scenario with the _"only if empty"_ option (i.e., when the destination field is repeating on the same form/event as a repeating/repeating field, then the value from the not repeating field will be on that shared new instance).
+\*\* You can override the default target event/form instance by writing an appropriate value (i.e. an integer 1-32767 or "new") to `redcap_repeat_instance`. This would typically be done using a `calc` field or `text` field with a `@CALCTEXT()` action tag to generate the desired instance number.
 
 ## File Fields
 
@@ -94,7 +94,7 @@ For instructions that are enabled, and where the destination project is differen
 * Pairs of fields mapping the source to the destination.
 * Select the "only if empty" checkbox if you want the copy to occur only for an initial value in the source field (i.e. copy the value only when the destination field is empty).
 * Note 1: you can update the destination record's DAG by writing to `redcap_data_access_group` as the destination field. 
-* Note 2: you can update data in a specific repeating event/form instance by writing appropriate values to `redcap_repeat_instrument` and `redcap_repeat_instance`. 
+* Note 2: you can update data in a specific repeating event/form instance by writing an appropriate value (i.e. an integer 1-32767 or "new") to `redcap_repeat_instance`. 
 
 ### Failure Alert
 
