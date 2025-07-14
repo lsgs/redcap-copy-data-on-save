@@ -17,6 +17,23 @@ class CopyDataOnSave extends AbstractExternalModule {
     protected $destProj;
     protected $configArray;
 
+	/** @var int Match record id (do not create) = 0 */
+	const rmDoNotCreate = 0;
+	/** @var int Match record id (create matching) = 1 */
+	const rmCreateMatching = 1;
+	/** @var int Match record id (create auto-numbered) = 2 */
+	const rmCreateAutoNumbered = 2;
+	/** @var int Look up via secondary unique field = 3 */
+	const rmLookupSUF = 3;
+
+    /** @var int Ignore or N/A = 0 */
+    const dagIgnoreOrNA = 0;
+    /** @var int Include DAG in copy = 1 */
+    const dagInclude = 1;
+    /** @var int Map source to destination [deprecated] = 2 */
+    const dagMap = 2;
+
+
     public function redcap_save_record($project_id, $record=null, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
         global $Proj;
 
@@ -28,13 +45,14 @@ class CopyDataOnSave extends AbstractExternalModule {
         foreach($settings as $instructionNum => $instruction) {
             if (!$instruction['copy-enabled']) continue; 
             if (array_search($instrument, $instruction['trigger-form'])===false) continue;
-            if (!empty($instruction['trigger-logic']) && true!==\REDCap::evaluateLogic($instruction['trigger-logic'], $project_id, $record, $event_id, $repeat_instance)) continue;
+            $repeat_instrument = $Proj->isRepeatingForm($event_id, $instrument) ? $instrument : "";
+            if (!empty($instruction['trigger-logic']) && true!==\REDCap::evaluateLogic($instruction['trigger-logic'], $project_id, $record, $event_id, $repeat_instance, $repeat_instrument)) continue;
 
             $destProjectId = $instruction['dest-project'];
             $destEventName = $instruction['dest-event'];
             $recIdField = $instruction['record-id-field'];
             $recMatchOpt = intval($instruction['record-create']);
-            $dagOption = $instruction['dag-option'];
+            $dagOption = intval($instruction['dag-option']);
             $dagMap = $instruction['dag-map'];
             $copyFields = $instruction['copy-fields'];
 
@@ -57,19 +75,19 @@ class CopyDataOnSave extends AbstractExternalModule {
             $matchValue = $this->getMatchValueForLookup($record, $event_id, $repeat_instance, $recIdField);
             $destRecord = $this->getDestinationRecordId($recMatchOpt, $matchValue);
             
-            if ($recMatchOpt==0 || $recMatchOpt==3) { 
-                // Match record id (do not create) || Look up via secondary unique field
-                if ($destRecord=='') continue; // matching destination record not found, do not create
+            if ($recMatchOpt==self::rmDoNotCreate || $recMatchOpt==self::rmLookupSUF) { 
+                // Matching destination record not found, do not create
+                if ($destRecord=='') continue; 
+            } else if ($recMatchOpt==self::rmCreateAutoNumbered) { 
+                // To copy, either lookup field is empty and destination is next autonumbered, or lookup and dest match
+                if (!(($matchValue=='' && $destRecord!='') || $matchValue!='' && $matchValue==$destRecord)) continue;
 
-            } else if ($recMatchOpt==2) { 
-                // Match record id (create auto-numbered)
-                if (!(($matchValue=='' && $destRecord!='') || $matchValue!='' && $matchValue==$destRecord)) continue; // to copy, either lookup field is empty and destination is next autonumbered, or lookup and dest match
-
-            } else if ($recMatchOpt==1) { 
-                // Match record id (create matching)
-                if ($destRecord=='') continue; // if have no id for destination then something amiss
+            } else if ($recMatchOpt==self::rmCreateMatching) { 
+                // If have no id for destination then something amiss
+                if ($destRecord=='') continue;
             } else {
-                continue; // other options not implemented
+                // Other options not implemented
+                continue;
             }
 
             if (empty($destEventName)) {
@@ -92,7 +110,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 'exportDataAccessGroups' => true
             ));
 
-            if (($recMatchOpt==0 || $recMatchOpt==3) && !array_key_exists($destRecord, $destProjectData)) continue; // do not create new record 
+            if (($recMatchOpt==self::rmDoNotCreate || $recMatchOpt==self::rmLookupSUF) && !array_key_exists($destRecord, $destProjectData)) continue; // do not create new record 
 
             $saveArray = array();
             $fileCopies = array();
@@ -102,6 +120,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 $sf = $cf['source-field'];
                 $df = $cf['dest-field'];
                 $noOverwrite = $cf['only-if-empty'];
+                $rtrNewInstance = $cf['rtr-new-instance'];
 
                 $rptEvtInSource = $this->sourceProj->isRepeatingEvent($event_id);
                 $rptEvtInDest = $this->destProj->isRepeatingEvent($destEventId);
@@ -124,7 +143,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                     N    N    Non-rpt
                     Y    N    Non-rpt
                     N    Y    New instance*  only-if-empty when ticked means new instance only if value not same as last instance
-                    Y    Y    Same instance
+                    Y    Y    Same instance (unless specified to create new instance)
                 */
                 if ($rptFrmInSource || $rptEvtInSource) {
                     $valueToCopy = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$rptInstrumentKeySrc][$repeat_instance][$sf];
@@ -134,7 +153,7 @@ class CopyDataOnSave extends AbstractExternalModule {
 
                 if ($rptFrmInDest || $rptEvtInDest) {
                     if ($rptFrmInSource || $rptEvtInSource) {
-                        $destInstance = $repeat_instance; // rpt src -> rpt dest: same instance
+                        $destInstance = $rtrNewInstance ? 'new' : $repeat_instance; // rpt src -> rpt dest: same or new instance depending on flag 
                     } else {
                         if (is_array($destProjectData)
                                 && is_array($destProjectData[$destRecord])
@@ -153,7 +172,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                             $destInstance = 1;
                         }
                     }
-                    $valueInDest = $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
+                    $valueInDest = $destInstance == 'new' ? '' : $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
                 } else {
                     $destInstance = null;
                     $valueInDest = $destProjectData[$destRecord][$destEventId][$df];
@@ -203,7 +222,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
             }
 
-            if ($dagOption > 0) {
+            if ($dagOption != self::dagIgnoreOrNA) {
                 if ($Proj->isRepeatingEvent($event_id)) {
                     $sdag = $this->sourceProjectData[$record]['repeat_instances'][$event_id][''][$repeat_instance]['redcap_data_access_group'] ?? '';
                 } else if ($Proj->isRepeatingForm($event_id, $instrument)) {
@@ -212,24 +231,20 @@ class CopyDataOnSave extends AbstractExternalModule {
                     $sdag = $this->sourceProjectData[$record][$event_id]['redcap_data_access_group'] ?? '';
                 }
 
-                switch ("$dagOption") {
-                    case "1": // dest same as source
-                        $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $sdag;
-                        break;
-                    case "2": // map
-                        $ddag = '';
-                        if ($sdag!='') {
-                            foreach ($dagMap as $dm) {
-                                if ($sdag==\REDCap::getGroupNames(true, $dm['source-dag'])) {
-                                    $ddag = $dm['dest-dag'];
-                                    // break; // don't break so last wins, not first, if source dag specified more than once (same behaviour as for source fields)
-                                }
+                if ($dagOption == self::dagInclude) {
+                    $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $sdag;
+                }
+                else if ($dagOption == self::dagMap) {
+                    $ddag = '';
+                    if ($sdag!='') {
+                        foreach ($dagMap as $dm) {
+                            if ($sdag==\REDCap::getGroupNames(true, $dm['source-dag'])) {
+                                $ddag = $dm['dest-dag'];
+                                // Don't break so last wins, not first, if source dag specified more than once (same behaviour as for source fields)
                             }
                         }
-                        $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $ddag;
-                        break;
-                    default: // ignore or n/a
-                        break;
+                    }
+                    $saveArray[$destRecord][$destEventId]['redcap_data_access_group'] = $ddag;
                 }
             }
 
@@ -249,13 +264,13 @@ class CopyDataOnSave extends AbstractExternalModule {
                 foreach ($fileDeletes as $deletedFile) { 
                     // No developer method for removing a file: DataEntry.php L5668 FILE UPLOAD FIELD: Set the file as "deleted" in redcap_edocs_metadata table
                     $instance = ($deletedFile['instance'] > 1) ? "instance = ".$this->escape($deletedFile['instance']) : "instance is null";
-                    $sql = "update redcap_edocs_metadata e, $redcap_data d left join $redcap_data d2 
-                            on d2.project_id = d.project_id and d2.value = d.value and d2.field_name = d.field_name and d2.record != d.record
-                            set e.delete_date = ?
-                            where e.project_id = ? and e.project_id = d.project_id
-                            and d.field_name = ? and d.value = e.doc_id and d.record = ?
-                            and d.$instance 
-                            and e.delete_date is null and d2.project_id is null and e.doc_id = ?";
+                    $sql = "UPDATE redcap_edocs_metadata e, $redcap_data d LEFT JOIN $redcap_data d2 
+                            ON d2.project_id = d.project_id AND d2.value = d.value AND d2.field_name = d.field_name AND d2.record != d.record
+                            SET e.delete_date = ?
+                            WHERE e.project_id = ? AND e.project_id = d.project_id
+                            AND d.field_name = ? AND d.value = e.doc_id AND d.record = ?
+                            AND d.$instance 
+                            AND e.delete_date IS NULL AND d2.project_id IS NULL AND e.doc_id = ?";
                     $params = [NOW, $deletedFile['project_id'],$deletedFile['field_name'],$deletedFile['record'],$deletedFile['doc_id']];
                     $sql_all[] = $this->getSqlForLogging($sql, $params);
                     $this->query($sql, $params);
@@ -288,7 +303,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 \REDCap::logEvent($title, $detail, '', $record, $event_id);
 
                 // if created autonumbered record, capture new id to lookup field
-                if ($recMatchOpt==2 && $destRecord!='') {
+                if ($recMatchOpt==self::rmCreateAutoNumbered && $destRecord!='') {
                     $saveAuto = array(array(
                         $this->sourceProj->table_pk => $record,
                         $recIdField => $destRecord
@@ -359,9 +374,9 @@ class CopyDataOnSave extends AbstractExternalModule {
     }
 
     /**
-     * setDestinationRecordId
+     * getDestinationRecordId
      * Get the record id to use in the destination from the source data based on the lookup value - supports using field from repeating form/event
-     * @param string $recMatchOpt Matching option
+     * @param int $recMatchOpt Matching option
      * @param string $lookupRecordId
      * @return string
      * @since 1.1.0
@@ -380,7 +395,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 'fields' => $destFields
             );
 
-            if ($recMatchOpt=='3') {
+            if ($recMatchOpt==self::rmLookupSUF) {
                 $params['filterLogic'] = '[first-event-name]['.$this->destProj->project['secondary_pk']."]='$lookupRecordId'"; // assume 2nd id is in first event for now
             } else {
                 $params['records'] = $lookupRecordId;
@@ -390,16 +405,16 @@ class CopyDataOnSave extends AbstractExternalModule {
         }
 
         switch ($recMatchOpt) {
-            case '0': // Match record id (do not create)
+            case self::rmDoNotCreate: // Match record id (do not create)
                 $destRecordId = (count($destData)) ? $lookupRecordId : ''; // return matched record id if already exists, empty if not
                 break;
-            case '1': // Match record id (create matching)
+            case self::rmCreateMatching: // Match record id (create matching)
                 $destRecordId = $lookupRecordId; // use lookup value and create if not existing - match not required
                 break;
-            case '2': // Match record id (create auto-numbered)
+            case self::rmCreateAutoNumbered: // Match record id (create auto-numbered)
                 $destRecordId = (count($destData)) ? $lookupRecordId : \REDCap::reserveNewRecordId($this->destProj->project_id); // return matched record id if already exists, reserve new if not
                 break;
-            case '3': // Look up via secondary unique field
+            case self::rmLookupSUF: // Look up via secondary unique field
                 $destRecordId = (count($destData)) ? array_key_first($destData) : ''; // return matched record id if second id found, empty if not
                 break;
             default: 
@@ -504,13 +519,13 @@ class CopyDataOnSave extends AbstractExternalModule {
             array('title'=>'Description','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $desc = $instruction['section-description'];
                 if (is_null($desc) || trim($desc=='')) {
-                    return '<i class="fas fa-minus text-muted"></i>';
+                    return '<i class="fa-solid fa-minus text-muted"></i>';
                 } else {
-                    return '<span class="cdos-hidden">'.$this->escape($desc).'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fas fa-comment-dots mx-2"></i></button>';
+                    return '<span class="cdos-hidden">'.$this->escape($desc).'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fa-solid fa-comment-dots mx-2"></i></button>';
                 }
             }),
             array('title'=>'Enabled','tdclass'=>'text-center','getter'=>function(array $instruction){ 
-                return '<i class="fas '.(($instruction['copy-enabled']) ? 'fa-check text-success' : 'fa-times text-danger').'"></i>';
+                return '<i class="fa-solid '.(($instruction['copy-enabled']) ? 'fa-check text-success' : 'fa-times text-danger').'"></i>';
             }),
             array('title'=>'Trigger Form(s)','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $formList = array();
@@ -522,15 +537,15 @@ class CopyDataOnSave extends AbstractExternalModule {
             array('title'=>'Trigger Logic','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $logic = $instruction['trigger-logic'];
                 if (is_null($logic) || trim($logic=='')) {
-                    return '<i class="fas fa-minus text-muted"></i>';
+                    return '<i class="fa-solid fa-minus text-muted"></i>';
                 } else {
-                    return '<span class="cdos-hidden"><pre>'.\htmlspecialchars($logic,ENT_QUOTES).'</pre></span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Trigger Logic"><i class="fas fa-bolt mx-2"></i></button>';
+                    return '<span class="cdos-hidden"><pre>'.\htmlspecialchars($logic,ENT_QUOTES).'</pre></span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Trigger Logic"><i class="fa-solid fa-bolt mx-2"></i></button>';
                 }
             }),
             array('title'=>'Destination Project','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $destPid = $instruction['dest-project'];
                 if (empty($destPid)) {
-                    return '<i class="fas fa-minus text-danger"></i>';
+                    return '<i class="fa-solid fa-minus text-danger"></i>';
                 } else {
                     $destProj = new \Project($destPid);
                     $title = $this->escape($destProj->project['app_title']);
@@ -538,10 +553,10 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
             }),
             array('title'=>'Destination Event','tdclass'=>'text-center','getter'=>function(array $instruction){ 
-                return (empty($instruction['dest-event'])) ? '<i class="fas fa-minus text-muted"></i>' : '<span class="badge bg-secondary">'.$instruction['dest-event'].'</span>';
+                return (empty($instruction['dest-event'])) ? '<i class="fa-solid fa-minus text-muted"></i>' : '<span class="badge bg-secondary">'.$instruction['dest-event'].'</span>';
             }),
             array('title'=>'Record ID Field','tdclass'=>'text-center','getter'=>function(array $instruction){ 
-                return (empty($instruction['record-id-field'])) ? '<i class="fas fa-minus text-danger"></i>' : '<span class="badge bg-primary">'.$instruction['record-id-field'].'</span>';
+                return (empty($instruction['record-id-field'])) ? '<i class="fa-solid fa-minus text-danger"></i>' : '<span class="badge bg-primary">'.$instruction['record-id-field'].'</span>';
             }),
             array('title'=>'Record Match Option','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $val = $instruction['record-create'] ?? '0';
@@ -558,27 +573,28 @@ class CopyDataOnSave extends AbstractExternalModule {
                     if (is_array($cf)) {
                         $s = "<span class='badge bg-primary'>{$cf['source-field']}</span>";
                         $d = "<span class='badge bg-secondary'>{$cf['dest-field']}</span>";
-                        $o = ($cf['only-if-empty']) ? '<i class="fas fa-times-circle text-secondary" title="Only if empty"></i>' : '<i class="fas fa-circle-check text-primary" title="Can overwrite"></i>';
-                        $fieldList[] = "<span class='nowrap'>$s<i class='fas fa-chevron-right text-muted mx-1'></i>$d $o</span>";
+                        $o = ($cf['only-if-empty']) ? '<i class="fa-solid fa-times-circle text-secondary" title="Only if empty"></i>' : '<i class="fa-solid fa-circle-check text-primary" title="Can overwrite"></i>';
+                        $n = ($cf['rtr-new-instance']) ? '<i class="fa-solid fa-square-plus text-success" title="Repeating to Repeating: Create new instance"></i>' : '';
+                        $fieldList[] = "<div class='nowrap my-1' style='display:flex;align-items:center;gap:2px;'>$s<i class='fa-solid fa-arrow-right-long text-muted'></i>$d $o $n</div>";
                     }
                 }
                 if (count($fieldList) > self::DISPLAY_MAX_FIELD_MAP) {
                     $firstN = array_slice($fieldList, 0, self::DISPLAY_MAX_FIELD_MAP);
                     $return = '<span class="cdos-hidden"><div class="cdos-field-map-dialog-content">';
                     for ($i=0; $i < count($fieldList); $i++) { 
-                        $return .= '<div class="my-2"><span class="cdos-field-map-index">'.($i+1).'.</span>'.$fieldList[$i].'</div>';
+                        $return .= '<div class="my-1" style="display:flex;align-items:center;"><span class="cdos-field-map-index">'.($i+1).'.</span>'.$fieldList[$i].'</div>';
                     }
                     $return .= '</div></span>';
-                    $return .= implode('<br>', $firstN);
-                    $return .= '<br><button class="cdos-btn-show btn btn-xs btn-outline-success mt-2" title="View All Field Mappings"><i class="fas fa-copy mr-1"></i>+'.(count($fieldList)-self::DISPLAY_MAX_FIELD_MAP).'</button>';
+                    $return .= implode('', $firstN);
+                    $return .= '<button type="button" class="cdos-btn-show btn btn-xs btn-outline-success mt-1" title="View All Field Mappings"><i class="fa-solid fa-eye mr-1"></i>+'.(count($fieldList)-self::DISPLAY_MAX_FIELD_MAP).'</button>';
                 } else {
-                    $return = implode('<br>', $fieldList);
+                    $return = implode('', $fieldList);
                 }
                 return $return; 
             })
         );
 
-        echo '<div class="projhdr"><i class="fas fa-file-export mr-1"></i>Copy Data on Save: Summary of Copy Instructions</div>';
+        echo '<div class="projhdr"><i class="fa-solid fa-file-export mr-1"></i>Copy Data on Save: Summary of Copy Instructions</div>';
         echo '<p>The table below shows the configuration settings for the copy instructions set up in this project.</p>';
         echo '<div id="cdos-summary-table-container">';
         echo '<table id="cdos-summary-table"><thead><tr>';
@@ -608,6 +624,7 @@ class CopyDataOnSave extends AbstractExternalModule {
             .cdos-hidden { display: none; }
             .cdos-field-map-dialog-content { max-height: 500px; overflow-y: scroll; }
             .cdos-field-map-index { display: inline-block; width: 35px; }
+            #cdos-summary-table .badge { font-weight: normal; padding: 3px 5px; }
         </style>
         <script type="text/javascript">
             let module = <?=$this->getJavascriptModuleObjectName()?>;
