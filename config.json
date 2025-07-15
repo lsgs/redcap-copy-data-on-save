@@ -64,7 +64,7 @@
 					"type": "project-id"
 				},
 				{
-					"name": "Destination event unique name<br>(Optional - leave empty if destination not longitudinal or copying to first event)",
+					"name": "Destination event unique name<br>(Optional - leave empty if destination not longitudinal or copying to first event)<br><span class=\"text-muted\">Note: Do not include square brackets.</span>",
 					"key": "dest-event",
 					"required": false,
 					"type": "text"
@@ -82,7 +82,7 @@
                 },
                 {
                     "key": "record-create",
-                    "name": "Record matching option<ul><li>Match record id (do not create):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then do nothing.</span></li><li>Match record id (create matching):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then create one with matching record id.</span></li><li>Match record id (create auto-numbered):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no value is present in the field then create an auto-numbered record in the destination and save the created record id to the field specified above. If a value is present and does not match a record in the destination, do nothing.</span></li><li>Look up via secondary unique field:<br><span class=\"text-muted\">Find a record with the value from the field specified above in the secondary unique field of the destination project. If no match is found, do nothing.</span></li></ul>",
+                    "name": "Record matching option",
                     "type": "dropdown",
                     "required": true,
 					"choices": [
@@ -90,6 +90,11 @@
 						{ "value": "1", "name": "Match record id (create matching)" },
 						{ "value": "2", "name": "Match record id (create auto-numbered)" },
 						{ "value": "3", "name": "Look up via secondary unique field" }					]
+                },
+                {
+                    "name": "Record matching option descriptions<div class=\"container\"><div class=\"row\"><div class=\"col\">Match record id (do not create):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then do nothing.</span></div><div class=\"col\">Match record id (create matching):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then create one with matching record id.</span></div><div class=\"col\">Match record id (create auto-numbered):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no value is present in the field then create an auto-numbered record in the destination and save the created record id to the field specified above. If a value is present and does not match a record in the destination, do nothing.</span></div><div class=\"col\">Look up via secondary unique field:<br><span class=\"text-muted\">Find a record with the value from the field specified above in the secondary unique field of the destination project. If no match is found, do nothing.</span></div></div></div>",
+                    "key": "record-create-desc",
+                    "type": "descriptive"
                 },
                 {
                     "name": "<div class=\"blue text-center\">DAG Options</div>",
@@ -111,6 +116,7 @@
                     "name": "<span class=\"text-muted\">DAG mapping [deprecated] (do not use)</span>",
                     "key": "dag-map",
                     "type": "sub_settings",
+                    "hidden": true,
                     "repeatable": true,
                     "sub_settings": [
                         {
@@ -128,13 +134,18 @@
                     ]
 				},
                 {
-                    "name": "<div class=\"text-muted\"><strong>The DAG mapping option is deprecated</strong> and will be removed in a future version (although backward compatibility will be maintained). Use a <code>@CALCTEXT</code> field to generate DAG unique names to include in the copy (to <code>redcap_data_access_group</code>) instead.</div>",
+                    "name": "<div class=\"text-muted\">Note: The DAG mapping option is deprecated and is being removed (although previous configurations using this option will still function). Instead, select the \"Ignore or N/A\" option and specify <code>redcap_data_access_group</code> as a destination field populated with a unique group names copied from a <code>@CALCTEXT</code> or suitably coded dropdown or radio field (see gif in the documentation for an example).</div>",
                     "key": "dag-map-desc",
                     "type": "descriptive"
                 },
                 {
                     "name": "<div class=\"blue text-center\">Copy Specification</div>",
                     "key": "header-copy",
+                    "type": "descriptive"
+                },
+                {
+                    "name": "<div class=\"text-muted\">Note: Specify raw destination field names. Do not include square brackets.</div>",
+                    "key": "header-copy-info",
                     "type": "descriptive"
                 },
                 {

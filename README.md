@@ -79,16 +79,12 @@ For instructions that are enabled, and where the destination project is differen
 
 **Data Access Group option**
 * Select how the *current* DAG of the copied record should be utilised.
-    1. Ignore: do not set or update the DAG for the record in the destination project.
+    1. Ignore or N/A: do not set or update the DAG for the record in the destination project.
     2. Include DAG in copy: the unique DAG name for the source record's DAG will be included in the copy. Destination DAGs must have matching names for the copy to be successful.
-    3. Map source DAGs to destination DAGs: specify the destination DAG to use for each source DAG. Multiple DAGs in the source project can be mapped to a single destination DAG.
-
-**DAG Mapping**
-* Utilised for DAG option "Map source to destination" only. Unfortunately due to a current limitation of the module framework branching logic does not work for sub-settings.
-* Do not enter settings here if no DAGs to copy or if DAG names match.
-* Source DAGs not listed will be ignored and there will be no DAG assigned in the destination.
-* Mapping multiple source DAGs to a single destination DAG is perfectly legitimate...
-* Mapping a source DAG to multiple destination DAGs is not. The last one wins.
+    3. Map source DAGs to destination DAGs [deprecated]
+        * This option is deprecated and should no longer be selected (although previous configurations using this option will still function).
+        * Instead, select the *"Ignore or N/A"* option and specify `redcap_data_access_group` as a destination field populated with a unique group name copied from a `@CALCTEXT` or suitably coded dropdown or radio field.
+        * The gif below shows an example of setting a record's DAG from a `@CALCTEXT` result.
 
 **Copy fields**
 * Pairs of fields mapping the source to the destination.
