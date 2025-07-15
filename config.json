@@ -159,12 +159,7 @@
                             "name": "Copy only if destination field empty (don't update)?",
                             "key": "only-if-empty",
                             "type": "checkbox"
-                        },
-						{
-							"name": "Repeating to repeating: Create new instance?",
-							"key": "rtr-new-instance",
-							"type": "checkbox"
-						}
+                        }
                     ]
 				}
 			]
