@@ -619,7 +619,13 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
             }),
             array('title'=>'Destination Event','tdclass'=>'text-center','getter'=>function(array $instruction){ 
-                return (empty($instruction['dest-event'])) ? '<i class="fa-solid fa-minus text-muted"></i>' : '<span class="badge bg-secondary">'.$instruction['dest-event'].'</span>';
+                if (empty($instruction['dest-event'])) {
+                    return '<i class="fa-solid fa-minus text-muted"></i>';
+                } else {
+                    $copyInstruction = new CopyInstruction($instruction);
+                    $badge = ($copyInstruction->destination_event_source==CopyInstruction::evtSourceField) ? 'bg-primary' : 'bg-secondary';
+                    return "<span class='badge $badge'>".$instruction['dest-event'].'</span>';
+                }
             }),
             array('title'=>'Record ID Field','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 return (empty($instruction['record-id-field'])) ? '<i class="fa-solid fa-minus text-danger"></i>' : '<span class="badge bg-primary">'.$instruction['record-id-field'].'</span>';
