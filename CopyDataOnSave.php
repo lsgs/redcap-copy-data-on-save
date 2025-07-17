@@ -10,6 +10,8 @@ namespace MCRI\CopyDataOnSave;
 
 use ExternalModules\AbstractExternalModule;
 
+require_once 'CopyInstruction.php';
+
 class CopyDataOnSave extends AbstractExternalModule {
     protected const DISPLAY_MAX_FIELD_MAP = 5;
     protected $sourceProj;
@@ -43,20 +45,33 @@ class CopyDataOnSave extends AbstractExternalModule {
         $settings = $this->getSubSettings('copy-config');
 
         foreach($settings as $instructionNum => $instruction) {
-            if (!$instruction['copy-enabled']) continue; 
-            if (array_search($instrument, $instruction['trigger-form'])===false) continue;
-            $repeat_instrument = $Proj->isRepeatingForm($event_id, $instrument) ? $instrument : "";
-            if (!empty($instruction['trigger-logic']) && true!==\REDCap::evaluateLogic($instruction['trigger-logic'], $project_id, $record, $event_id, $repeat_instance, $repeat_instrument)) continue;
 
-            $destProjectId = $instruction['dest-project'];
-            $destEventName = $instruction['dest-event'];
-            $recIdField = $instruction['record-id-field'];
-            $recMatchOpt = intval($instruction['record-create']);
-            $dagOption = intval($instruction['dag-option']);
-            $dagMap = $instruction['dag-map'];
-            $copyFields = $instruction['copy-fields'];
+            $copyInstruction = new CopyInstruction($instruction, $instructionNum);
+            $configErrors = $copyInstruction->getConfigErrors();
+            if (count($configErrors)) {
+                $title = "CopyDataOnSave module";
+                $detail = "Errors in Instruction #".($copyInstruction->sequence)." \n";
+                $detail .= implode('\n - ',$configErrors);
+                \REDCap::logEvent($title, $detail, '', $record, $event_id);
+                $this->notify($title, $detail);
+                continue;
+            }
+
+            if (!$copyInstruction->copy_enabled) continue; 
+            if (array_search($instrument, $copyInstruction->trigger_form)===false) continue;
+            $repeat_instrument = $Proj->isRepeatingForm($event_id, $instrument) ? $instrument : "";
+            if (!empty($copyInstruction->trigger_logic) && true!==\REDCap::evaluateLogic($copyInstruction->trigger_logic, $project_id, $record, $event_id, $repeat_instance, $repeat_instrument)) continue;
+
+            $destProjectId = $copyInstruction->destination_project->project_id;
+            $destEventName = $copyInstruction->destination_event;
+            $recIdField = $copyInstruction->record_id_field;
+            $recMatchOpt = $copyInstruction->record_match_option;
+            $dagOption = $copyInstruction->dag_option;
+            $dagMap = $instruction['dag-map']; // deprecated
+            $copyFields = $copyInstruction->copy_fields;
 
             $readSourceFields[] = $recIdField;
+            if ($copyInstruction->destination_event_source == CopyInstruction::evtSourceField) $readSourceFields[] = $copyInstruction->destination_event;
 
             $sourceInstanceField = null;
             foreach ($copyFields as $cf) {
@@ -103,12 +118,32 @@ class CopyDataOnSave extends AbstractExternalModule {
                 continue;
             }
 
+            if ($copyInstruction->destination_event_source == CopyInstruction::evtSourceField) {
+                // if using source field for destination event name then reaad the value and validate
+                $sourceEventFieldForm = $this->sourceProj->metadata[$copyInstruction->destination_event]['form_name'];
+                if (!in_array($event_id, $this->sourceProj->getEventsFormDesignated($sourceEventFieldForm))) {
+                    $this->log("Error in Copy Data on Save instruction #$instructionNum configuration: field for destination event source '$destEventName' is invalid for event_id=$event_id");
+                    continue;
+                }
+                // read value of event name from source field - may be on a repeating event or form
+                $sourceEventFieldRpt = $this->sourceProj->isRepeatingForm($event_id, $sourceEventFieldForm);
+                if ($sourceEventFieldRpt) {
+                    $sourceEventFieldRptFormKey = ($this->sourceProj->isRepeatingEvent($event_id)) ? '' : $sourceEventFieldForm;
+                }
+
+                if ($sourceEventFieldRpt) {
+                    $destEventName = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$sourceEventFieldRptFormKey][$repeat_instance][$copyInstruction->destination_event];
+                } else {
+                    $destEventName = $this->sourceProjectData[$record][$event_id][$copyInstruction->destination_event];
+                }       
+            }
+
             if (empty($destEventName)) {
                 $destEventId = $this->destProj->firstEventId;
             } else {
                 $destEventId = $this->destProj->getEventIdUsingUniqueEventName($destEventName);
                 if (!$destEventId) {
-                    $this->log("Error in Copy Data on Save instruction #$instructionNum configration: invalid destination event '$destEventName'");
+                    $this->log("Error in Copy Data on Save instruction #$instructionNum configuration: invalid destination event '$destEventName'");
                     continue;
                 }
             }
@@ -549,7 +584,14 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
             }),
             array('title'=>'Enabled','tdclass'=>'text-center','getter'=>function(array $instruction){ 
-                return '<i class="fa-solid '.(($instruction['copy-enabled']) ? 'fa-check text-success' : 'fa-times text-danger').'"></i>';
+                $enabledDesc = '<i class="fa-solid '.(($instruction['copy-enabled']) ? 'fa-check text-success' : 'fa-times text-danger').'"></i>';
+                $copyInstruction = new CopyInstruction($instruction);
+                $configErrors = $copyInstruction->getConfigErrors();
+                if (count($configErrors)) {
+                    $errMsg = '<ul><li>'.implode('</li><li>', $configErrors).'</li></ul>';
+                    $enabledDesc .= '<span class="cdos-hidden">'.$this->escape($errMsg).'</span><button class="cdos-btn-show btn btn-xs btn-outline-danger ml-2" title="Copy Instruction Configuration Errors"><i class="fa-solid fa-exclamation-triangle mx-2"></i></button>';
+                }
+                return $enabledDesc;
             }),
             array('title'=>'Trigger Form(s)','tdclass'=>'text-center','getter'=>function(array $instruction){ 
                 $formList = array();

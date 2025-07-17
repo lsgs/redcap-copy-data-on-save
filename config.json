@@ -64,7 +64,7 @@
 					"type": "project-id"
 				},
 				{
-					"name": "Destination event unique name<br>(Optional - leave empty if destination not longitudinal or copying to first event)<br><span class=\"text-muted\">Note: Do not include square brackets.</span>",
+					"name": "Destination event unique name<br>(Optional - leave empty if destination not longitudinal or copying to first event)<br><span class=\"text-muted\">Note 1: Specify the unique event name for the destination event. Alternatively, specify a field name in the source project that will contain the event name to use. (If empty will default to first event.)</span><br><span class=\"text-muted\">Note 2: Do not include square brackets.</span>",
 					"key": "dest-event",
 					"required": false,
 					"type": "text"
@@ -92,7 +92,7 @@
 						{ "value": "3", "name": "Look up via secondary unique field" }					]
                 },
                 {
-                    "name": "Record matching option descriptions<div class=\"container\"><div class=\"row\"><div class=\"col\">Match record id (do not create):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then do nothing.</span></div><div class=\"col\">Match record id (create matching):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then create one with matching record id.</span></div><div class=\"col\">Match record id (create auto-numbered):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no value is present in the field then create an auto-numbered record in the destination and save the created record id to the field specified above. If a value is present and does not match a record in the destination, do nothing.</span></div><div class=\"col\">Look up via secondary unique field:<br><span class=\"text-muted\">Find a record with the value from the field specified above in the secondary unique field of the destination project. If no match is found, do nothing.</span></div></div></div>",
+                    "name": "Record Matching Options: Detail<div class=\"container\"><div class=\"row\"><div class=\"col\">Match record id (do not create):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then do nothing.</span></div><div class=\"col\">Match record id (create matching):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then create one with matching record id.</span></div><div class=\"col\">Match record id (create auto-numbered):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no value is present in the field then create an auto-numbered record in the destination and save the created record id to the field specified above. If a value is present and does not match a record in the destination, do nothing.</span></div><div class=\"col\">Look up via secondary unique field:<br><span class=\"text-muted\">Find a record with the value from the field specified above in the secondary unique field of the destination project. If no match is found, do nothing.</span></div></div></div>",
                     "key": "record-create-desc",
                     "type": "descriptive"
                 },

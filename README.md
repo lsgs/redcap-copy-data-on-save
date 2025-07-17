@@ -65,7 +65,7 @@ For instructions that are enabled, and where the destination project is differen
 * The project to copy data *to*. Can be within the current project e.g. copying data to other events or fields.
 	
 **Destination event name**
-* *Optional*: the unique event name of the event to copy data to in the destination. Leave empty if the destination is not longitudinal or to copy to the first event.
+* *Optional*: the unique event name of the event to copy data to in the destination. Alternatively, a field in the source project (within the trigger context) that will contain the unique event name to use. Leave empty if the destination is not longitudinal or to copy to the first event.
 
 **Field containing destination record id**
 * Field containing record id for destination project. The value from this field is used to locate the corresponding record in the destination project using the mechanism specified below.
@@ -91,6 +91,7 @@ For instructions that are enabled, and where the destination project is differen
 * Select the "only if empty" checkbox if you want the copy to occur only for an initial value in the source field (i.e. copy the value only when the destination field is empty).
 * Note 1: you can update the destination record's DAG by writing to `redcap_data_access_group` as the destination field. 
 * Note 2: you can update data in a specific repeating event/form instance by writing an appropriate value (i.e. an integer 1-32767 or "new") to `redcap_repeat_instance`. 
+* Note 3: Ensure the destination fields are specified using the field name only - no square brackets or other extraneous characters.
 
 ### Failure Alert
 
