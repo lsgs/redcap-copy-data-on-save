@@ -114,8 +114,7 @@ class CopyInstruction {
                     $this->config_errors[] = "missing destination field in copy fields pair #".($idx+1);
                 } else if (preg_match('/[^a-z0-9_]/', $dest_field)) {
                     $this->config_errors[] = "destination field \"".htmlspecialchars($dest_field,ENT_QUOTES)."\" has invalid characters in copy fields pair #".($idx+1);
-                }
-                if (!is_null($this->destination_project)) {
+                } else if (!is_null($this->destination_project)) {
                     if (empty($dest_field) || ($dest_field!=='redcap_data_access_group' && $dest_field!=='redcap_repeat_instance' && !array_key_exists($dest_field, $this->destination_project->metadata))) {
                         $this->config_errors[] = "destination field \"".htmlspecialchars($dest_field,ENT_QUOTES)."\" not in destination project in copy fields pair #".($idx+1);
                     }
