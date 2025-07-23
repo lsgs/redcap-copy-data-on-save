@@ -591,6 +591,11 @@ class CopyDataOnSave extends AbstractExternalModule {
                     $errMsg = '<ul><li>'.implode('</li><li>', $configErrors).'</li></ul>';
                     $enabledDesc .= '<span class="cdos-hidden">'.$this->escape($errMsg).'</span><button class="cdos-btn-show btn btn-xs btn-outline-danger ml-2" title="Copy Instruction Configuration Errors"><i class="fa-solid fa-exclamation-triangle mx-2"></i></button>';
                 }
+                $configWarnings = $copyInstruction->getConfigWarnings();
+                if (count($configWarnings)) {
+                    $warnMsg = '<ul><li>'.implode('</li><li>', $configWarnings).'</li></ul>';
+                    $enabledDesc .= '<span class="cdos-hidden">'.$this->escape($warnMsg).'</span><button class="cdos-btn-show btn btn-xs btn-outline-warning ml-2" title="Copy Instruction Configuration Warnings"><i class="fa-solid fa-exclamation-triangle mx-2"></i></button>';
+                }
                 return $enabledDesc;
             }),
             array('title'=>'Trigger Form(s)','tdclass'=>'text-center','getter'=>function(array $instruction){ 

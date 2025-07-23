@@ -20,6 +20,7 @@ class CopyInstruction {
     public $dag_option;
     public $copy_fields;
     public $config_errors;
+    public $config_warnings;
 
     /** @var int Event source specify unique name = 0 */
 	const evtSourceName = 0;
@@ -31,6 +32,7 @@ class CopyInstruction {
         $this->sequence = ($instruction_index??0)+1;
         $this->source_project = $Proj;
         $this->config_errors = array();
+        $this->config_warnings = array();
 
         $simple_settings = array(
             'copy-enabled','trigger-form','trigger-logic','record-id-field','record-create','dag-option','copy-fields'
@@ -95,7 +97,7 @@ class CopyInstruction {
         }
 
         if ($this->dag_option == CopyDataOnSave::dagMap) {
-            $this->config_errors[] = "do not use \"dag mapping\" option - see documentation";
+            $this->config_warnings[] = "do not use \"dag mapping\" option - see documentation";
         }
 
         if (empty($this->copy_fields) || !is_array($this->copy_fields)) {
@@ -125,5 +127,8 @@ class CopyInstruction {
 
     public function getConfigErrors(): array {
         return $this->config_errors;
+    }
+    public function getConfigWarnings(): array {
+        return $this->config_warnings;
     }
 }
