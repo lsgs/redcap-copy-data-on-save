@@ -36,7 +36,7 @@ class CopyDataOnSave extends AbstractExternalModule {
     const dagMap = 2;
 
 
-    public function redcap_save_record($project_id, $record=null, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
+    public function redcap_save_record($project_id, $record, $instrument, $event_id, $group_id=null, $survey_hash=null, $response_id=null, $repeat_instance=1) {
         global $Proj;
 
         if ($this->getProjectSetting('delay') && $this->delayModuleExecution()) return; 
@@ -418,7 +418,7 @@ class CopyDataOnSave extends AbstractExternalModule {
      * @since 1.3.0
      */
     protected function getMatchValueForLookup($record, $event_id, $instance, $recIdField) {
-        if ($this->sourceProj->project_id===$this->destProj->project_id && $recIdField === $this->sourceProj->table_pk) return $record; // copying within the same project & record
+        if ($recIdField === $this->sourceProj->table_pk) return $record;
         $lookupRecordId = '';
         try {
             if ($this->sourceProj->isRepeatingEvent($event_id)) {
