@@ -240,7 +240,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                 if ($valueInDest!='' && $noOverwrite) {
                     $overwriteBlocked[] = "$sf=>$df"; // update only if destination empty
                 } else {
-                    if ($this->sourceProj->metadata[$df]['element_type'] == 'file') {
+                    if ($this->sourceProj->metadata[$sf]['element_type'] == 'file') {
                         // for file fields as destination need to copy the source file and get a new doc id
                         // if destination already has a file, only copy if the file has changed
                         if ($valueInDest!='') {
