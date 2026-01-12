@@ -580,7 +580,9 @@ class CopyDataOnSave extends AbstractExternalModule {
                 if (is_null($desc) || trim($desc=='')) {
                     return '<i class="fa-solid fa-minus text-muted"></i>';
                 } else {
-                    return '<span class="cdos-hidden">'.$this->escape($desc).'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fa-solid fa-comment-dots mx-2"></i></button>';
+                    $desc = $this->escape(trim($desc));
+                    $descDisplay = '<p class="m-0 text-left cdos-two-line-text" style="font-size:75%; max-width: 20ch;">'.str_replace('\n',' ',$desc).'</p>';
+                    return $descDisplay.'<span class="cdos-hidden">'.$desc.'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fa-solid fa-comment-dots mx-2"></i></button>';
                 }
             }),
             array('title'=>'Enabled','tdclass'=>'text-center','getter'=>function(array $instruction){ 
@@ -702,6 +704,17 @@ class CopyDataOnSave extends AbstractExternalModule {
             .cdos-field-map-dialog-content { max-height: 500px; overflow-y: scroll; }
             .cdos-field-map-index { display: inline-block; width: 35px; }
             #cdos-summary-table .badge { font-weight: normal; padding: 3px 5px; }
+            .cdos-two-line-text {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                display: -webkit-box;
+                line-clamp: 2;
+                box-orient: vertical;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                max-height: 2em; /* Optional: sets a max height if the above isn't supported */
+                line-height: 1em; /* Ensure line-height is set correctly */
+            }
         </style>
         <script type="text/javascript">
             let module = <?=$this->getJavascriptModuleObjectName()?>;
@@ -723,5 +736,21 @@ class CopyDataOnSave extends AbstractExternalModule {
             });
         </script>
         <?php
+    }
+
+    public function redcap_every_page_top($project_id) {
+        if (!defined('PAGE')) return;
+        if (!empty($project_id) && PAGE==='manager/project.php') {
+            $url = $this->getUrl('summary.php',false,false);
+            ?>
+            <script type="text/javascript">
+                $(document).ready(function(){
+                    let url = '<?=$url?>';
+                    let loc = $('tr[data-module="copy_data_on_save"] div.external-modules-description');
+                    $(loc).append('<div class="mt-1"><a href="'+url+'"><i class="fa-solid fa-list-ol" style="margin-right: 5px;"></i> View Summary of Copy Instructions</a>')
+                });
+            </script>
+            <?php
+        }
     }
 }
