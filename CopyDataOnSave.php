@@ -263,7 +263,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                                 );
                             } else {
                                 $fileCopies[] = array(
-                                    'doc_id' => \REDCap::copyFile($valueToCopy, $project_id), 
+                                    'doc_id' => \REDCap::copyFile($valueToCopy, $destProjectId), 
                                     'project_id' => $destProjectId, 
                                     'record' => $destRecord, 
                                     'field_name' => $df, 
