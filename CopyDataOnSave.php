@@ -81,14 +81,17 @@ class CopyDataOnSave extends AbstractExternalModule {
             }
 
             // when specifying instance number for destination, is field for instance repeating in the source?
-            $sourceInstanceFieldRpt = (is_null($sourceInstanceField)) 
-                ? false 
-                : $this->sourceProj->isRepeatingForm($event_id, $this->sourceProj->metadata[$sourceInstanceField]['form_name']);
-
-            if ($sourceInstanceFieldRpt) {
-                $sourceInstanceFieldRptFormKey = ($this->sourceProj->isRepeatingEvent($event_id)) 
-                    ? ''
-                    : $this->sourceProj->metadata[$sourceInstanceField]['form_name'];
+            $sourceInstanceFieldRptFormKey = null;
+            if (is_null($sourceInstanceField)) {
+                $sourceInstanceFieldRpt = false;
+            } else {
+                $sourceInstanceFieldForm = $this->sourceProj->metadata[$sourceInstanceField]['form_name'];
+                $sourceInstanceFieldRpt = $this->sourceProj->isRepeatingFormOrEvent($event_id, $sourceInstanceFieldForm);
+                if ($sourceInstanceFieldRpt) {
+                    $sourceInstanceFieldRptFormKey = ($this->sourceProj->isRepeatingEvent($event_id)) 
+                        ? ''
+                        : $sourceInstanceFieldForm;
+                }
             }
                 
             $this->sourceProjectData = \REDCap::getData(array(
@@ -231,7 +234,14 @@ class CopyDataOnSave extends AbstractExternalModule {
                             $destInstance = 1;
                         }
                     }
-                    $valueInDest = $destInstance == 'new' ? '' : $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
+                    if ($destInstance == 'new') {
+                        $valueInDest = '';
+                    } else if (!(isset($destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df]))) {
+                        $valueInDest = '';
+                    } else {
+                        $valueInDest = $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
+                    }
+
                 } else {
                     $destInstance = null;
                     $valueInDest = $destProjectData[$destRecord][$destEventId][$df];
@@ -581,8 +591,9 @@ class CopyDataOnSave extends AbstractExternalModule {
                     return '<i class="fa-solid fa-minus text-muted"></i>';
                 } else {
                     $desc = $this->escape(trim($desc));
-                    $descDisplay = '<p class="m-0 text-left cdos-two-line-text" style="font-size:75%; max-width: 20ch;">'.str_replace('\n',' ',$desc).'</p>';
-                    return $descDisplay.'<span class="cdos-hidden">'.$desc.'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fa-solid fa-comment-dots mx-2"></i></button>';
+                    $descDisplay = '<span class="m-0 text-left cdos-two-line-text" style="font-size:75%; max-width: 20ch;">'.str_replace('\n',' ',$desc).'</span>';
+                    return '<span class="cdos-hidden">'.$desc.'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View full description">'.$descDisplay.'</button>';
+//                    return $descDisplay.'<span class="cdos-hidden">'.$desc.'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fa-solid fa-comment-dots mx-2"></i></button>';
                 }
             }),
             array('title'=>'Enabled','tdclass'=>'text-center','getter'=>function(array $instruction){ 
