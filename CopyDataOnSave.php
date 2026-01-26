@@ -236,9 +236,14 @@ class CopyDataOnSave extends AbstractExternalModule {
                             $destInstance = 1;
                         }
                     }
-                    $valueInDest = ($destInstance == 'new' || !array_key_exists($destInstance, $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest])) 
-                        ? '' 
-                        : $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
+                    if ($destInstance == 'new') {
+                        $valueInDest = '';
+                    } else if (!(isset($destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df]))) {
+                        $valueInDest = '';
+                    } else {
+                        $valueInDest = $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
+                    }
+
                 } else {
                     $destInstance = null;
                     $valueInDest = $destProjectData[$destRecord][$destEventId][$df];
