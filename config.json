@@ -1,7 +1,7 @@
 {
-	"name": "Copy Data on Save",
-	"namespace": "MCRI\\CopyDataOnSave",
-	"description": "Copy data from one place to another when you save a form. You can set up multiple copy processes to different projects or even to other fields in the same project.",
+    "name": "Copy Data on Save",
+    "namespace": "MCRI\\CopyDataOnSave",
+    "description": "Copy data from one place to another when you save a form. You can set up multiple copy processes to different projects or even to other fields in the same project.",
     "authors": [
         {
             "name": "Luke Stevens",
@@ -9,9 +9,10 @@
             "institution": "Murdoch Children's Research Institute"
         }
     ],
-    "framework-version": 15,
-	"system-settings": [ ],
-	"project-settings": [
+    "framework-version": 16,
+    "auth-ajax-actions": [ "import-copy-instructions" ],
+    "system-settings": [ ],
+    "project-settings": [
         {
             "key": "summary-page",
             "name": "<div style=\"display:inline-block;width:392px;\">View summary of copy instructions:</div><div style=\"display:inline-block;width:200px;\"><a class=\"btn btn-sm btn-primaryrc\" style=\"color:#fff;\" target=\"_blank\" href=\"#\">Open<i class=\"fas fa-external-link-alt ml-1\"></i></a></div>",
@@ -29,12 +30,12 @@
             "type": "sub_settings",
             "repeatable": true,
             "sub_settings": [
-				{
-					"key": "section-description",
-					"name": "Name / Description (Optional)",
-					"required": false,
-					"type": "textarea"
-				},
+                {
+                    "key": "section-description",
+                    "name": "Name / Description (Optional)",
+                    "required": false,
+                    "type": "textarea"
+                },
                 {
                     "key": "copy-enabled",
                     "name": "Enabled?",
@@ -51,24 +52,24 @@
                     "repeatable": true,
                     "type": "form-list"
                 },
-				{
-					"name": "Trigger condition (REDCap logic syntax)<br>(Optional - leave empty to always copy.)",
-					"key": "trigger-logic",
-					"required": false,
-					"type": "text"
-				},
-				{
-					"name": "Destination project<br>(Can be <i>this</i> project)",
-					"key": "dest-project",
-					"required": true,
-					"type": "project-id"
-				},
-				{
-					"name": "Destination event unique name<br>(Optional - leave empty if destination not longitudinal or copying to first event)<br><span class=\"text-muted\">Note 1: Specify the unique event name for the destination event. Alternatively, specify a field name in the source project that will contain the event name to use. (If empty will default to first event.)</span><br><span class=\"text-muted\">Note 2: Do not include square brackets.</span>",
-					"key": "dest-event",
-					"required": false,
-					"type": "text"
-				},
+                {
+                    "name": "Trigger condition (REDCap logic syntax)<br>(Optional - leave empty to always copy.)",
+                    "key": "trigger-logic",
+                    "required": false,
+                    "type": "text"
+                },
+                {
+                    "name": "Destination project<br>(Can be <i>this</i> project)",
+                    "key": "dest-project",
+                    "required": true,
+                    "type": "project-id"
+                },
+                {
+                    "name": "Destination event unique name<br>(Optional - leave empty if destination not longitudinal or copying to first event)<br><span class=\"text-muted\">Note 1: Specify the unique event name for the destination event. Alternatively, specify a field name in the source project that will contain the event name to use. (If empty will default to first event.)</span><br><span class=\"text-muted\">Note 2: Do not include square brackets.</span>",
+                    "key": "dest-event",
+                    "required": false,
+                    "type": "text"
+                },
                 {
                     "name": "<div class=\"blue text-center\">Destination Record</div>",
                     "key": "header-record",
@@ -85,11 +86,12 @@
                     "name": "Record matching option",
                     "type": "dropdown",
                     "required": true,
-					"choices": [
-						{ "value": "0", "name": "Match record id (do not create)" },
-						{ "value": "1", "name": "Match record id (create matching)" },
-						{ "value": "2", "name": "Match record id (create auto-numbered)" },
-						{ "value": "3", "name": "Look up via secondary unique field" }					]
+                    "choices": [
+                        { "value": "0", "name": "Match record id (do not create)" },
+                        { "value": "1", "name": "Match record id (create matching)" },
+                        { "value": "2", "name": "Match record id (create auto-numbered)" },
+                        { "value": "3", "name": "Look up via secondary unique field" }
+                    ]
                 },
                 {
                     "name": "Record Matching Options: Detail<div class=\"container\"><div class=\"row\"><div class=\"col\">Match record id (do not create):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then do nothing.</span></div><div class=\"col\">Match record id (create matching):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no matching record found then create one with matching record id.</span></div><div class=\"col\">Match record id (create auto-numbered):<br><span class=\"text-muted\">Copy to record id saved to the field specified above. If no value is present in the field then create an auto-numbered record in the destination and save the created record id to the field specified above. If a value is present and does not match a record in the destination, do nothing.</span></div><div class=\"col\">Look up via secondary unique field:<br><span class=\"text-muted\">Find a record with the value from the field specified above in the secondary unique field of the destination project. If no match is found, do nothing.</span></div></div></div>",
@@ -102,16 +104,16 @@
                     "type": "descriptive"
                 },
                 {
-					"name": "Data Access Group option",
-					"key": "dag-option",
-					"type": "dropdown",
+                    "name": "Data Access Group option",
+                    "key": "dag-option",
+                    "type": "dropdown",
                     "required": true,
-					"choices": [
-						{ "value": "0", "name": "Ignore or N/A" },
-						{ "value": "1", "name": "Include DAG in copy" },
-						{ "value": "2", "name": "Map source to destination [deprecated]" }
-					]
-				},
+                    "choices": [
+                        { "value": "0", "name": "Ignore or N/A" },
+                        { "value": "1", "name": "Include DAG in copy" },
+                        { "value": "2", "name": "Map source to destination [deprecated]" }
+                    ]
+                },
                 {
                     "name": "<span class=\"text-muted\">DAG mapping [deprecated] (do not use)</span>",
                     "key": "dag-map",
@@ -132,7 +134,7 @@
                             "type": "text"
                         }
                     ]
-				},
+                },
                 {
                     "name": "<div class=\"text-muted\">Note: The DAG mapping option is deprecated and is being removed (although previous configurations using this option will still function). Instead, select the \"Ignore or N/A\" option and specify <code>redcap_data_access_group</code> as a destination field populated with a unique group names copied from a <code>@CALCTEXT</code> or suitably coded dropdown or radio field (see gif in the documentation for an example).</div>",
                     "key": "dag-map-desc",
@@ -172,9 +174,9 @@
                             "type": "checkbox"
                         }
                     ]
-				}
-			]
-		},
+                }
+            ]
+        },
         {
             "name": "<div class=\"my-2 gray text-center\" style=\"width:733px;\">End of copy configuration instructions</div>",
             "key": "spacer-end-instructions",

@@ -11,9 +11,11 @@ namespace MCRI\CopyDataOnSave;
 use ExternalModules\AbstractExternalModule;
 
 require_once 'CopyInstruction.php';
+require_once 'ModuleSettingsManager.php';
 
 class CopyDataOnSave extends AbstractExternalModule {
     protected const DISPLAY_MAX_FIELD_MAP = 5;
+    protected const IMPORT_ACTION = 'import-copy-instructions';
     protected $sourceProj;
     protected $sourceProjectData;
     protected $destProj;
@@ -62,8 +64,8 @@ class CopyDataOnSave extends AbstractExternalModule {
             $repeat_instrument = $Proj->isRepeatingForm($event_id, $instrument) ? $instrument : "";
             if (!empty($copyInstruction->trigger_logic) && true!==\REDCap::evaluateLogic($copyInstruction->trigger_logic, $project_id, $record, $event_id, $repeat_instance, $repeat_instrument)) continue;
 
-            $destProjectId = $copyInstruction->destination_project->project_id;
-            $destEventName = $copyInstruction->destination_event;
+            $destProjectId = $copyInstruction->dest_project->project_id;
+            $destEventName = $copyInstruction->dest_event;
             $recIdField = $copyInstruction->record_id_field;
             $recMatchOpt = $copyInstruction->record_match_option;
             $dagOption = $copyInstruction->dag_option;
@@ -71,24 +73,27 @@ class CopyDataOnSave extends AbstractExternalModule {
             $copyFields = $copyInstruction->copy_fields;
 
             $readSourceFields[] = $recIdField;
-            if ($copyInstruction->destination_event_source == CopyInstruction::evtSourceField) $readSourceFields[] = $copyInstruction->destination_event;
+            if ($copyInstruction->dest_event_source == CopyInstruction::evtSourceField) $readSourceFields[] = $copyInstruction->dest_event;
 
             $sourceInstanceField = null;
             foreach ($copyFields as $cf) {
-                $readSourceFields[] = $cf['source-field'];
-                $readDestFields[] = $cf['dest-field'];
+                $readSourceFields[] = trim($cf['source-field']);
+                $readDestFields[] = trim($cf['dest-field']); // #25 @bigdanfoley
                 if ($cf['dest-field']=='redcap_repeat_instance') $sourceInstanceField = $cf['source-field'];
             }
 
             // when specifying instance number for destination, is field for instance repeating in the source?
-            $sourceInstanceFieldRpt = (is_null($sourceInstanceField)) 
-                ? false 
-                : $this->sourceProj->isRepeatingForm($event_id, $this->sourceProj->metadata[$sourceInstanceField]['form_name']);
-
-            if ($sourceInstanceFieldRpt) {
-                $sourceInstanceFieldRptFormKey = ($this->sourceProj->isRepeatingEvent($event_id)) 
-                    ? ''
-                    : $this->sourceProj->metadata[$sourceInstanceField]['form_name'];
+            $sourceInstanceFieldRptFormKey = null;
+            if (is_null($sourceInstanceField)) {
+                $sourceInstanceFieldRpt = false;
+            } else {
+                $sourceInstanceFieldForm = $this->sourceProj->metadata[$sourceInstanceField]['form_name'];
+                $sourceInstanceFieldRpt = $this->sourceProj->isRepeatingFormOrEvent($event_id, $sourceInstanceFieldForm);
+                if ($sourceInstanceFieldRpt) {
+                    $sourceInstanceFieldRptFormKey = ($this->sourceProj->isRepeatingEvent($event_id)) 
+                        ? ''
+                        : $sourceInstanceFieldForm;
+                }
             }
                 
             $this->sourceProjectData = \REDCap::getData(array(
@@ -118,9 +123,9 @@ class CopyDataOnSave extends AbstractExternalModule {
                 continue;
             }
 
-            if ($copyInstruction->destination_event_source == CopyInstruction::evtSourceField) {
+            if ($copyInstruction->dest_event_source == CopyInstruction::evtSourceField) {
                 // if using source field for destination event name then reaad the value and validate
-                $sourceEventFieldForm = $this->sourceProj->metadata[$copyInstruction->destination_event]['form_name'];
+                $sourceEventFieldForm = $this->sourceProj->metadata[$copyInstruction->dest_event]['form_name'];
                 if (!in_array($event_id, $this->sourceProj->getEventsFormDesignated($sourceEventFieldForm))) {
                     $this->log("Error in Copy Data on Save instruction #$instructionNum configuration: field for destination event source '$destEventName' is invalid for event_id=$event_id");
                     continue;
@@ -132,9 +137,9 @@ class CopyDataOnSave extends AbstractExternalModule {
                 }
 
                 if ($sourceEventFieldRpt) {
-                    $destEventName = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$sourceEventFieldRptFormKey][$repeat_instance][$copyInstruction->destination_event];
+                    $destEventName = $this->sourceProjectData[$record]['repeat_instances'][$event_id][$sourceEventFieldRptFormKey][$repeat_instance][$copyInstruction->dest_event];
                 } else {
-                    $destEventName = $this->sourceProjectData[$record][$event_id][$copyInstruction->destination_event];
+                    $destEventName = $this->sourceProjectData[$record][$event_id][$copyInstruction->dest_event];
                 }       
             }
 
@@ -231,7 +236,9 @@ class CopyDataOnSave extends AbstractExternalModule {
                             $destInstance = 1;
                         }
                     }
-                    $valueInDest = $destInstance == 'new' ? '' : $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
+                    $valueInDest = ($destInstance == 'new' || !array_key_exists($destInstance, $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest])) 
+                        ? '' 
+                        : $destProjectData[$destRecord]['repeat_instances'][$destEventId][$rptInstrumentKeyDest][$destInstance][$df];
                 } else {
                     $destInstance = null;
                     $valueInDest = $destProjectData[$destRecord][$destEventId][$df];
@@ -263,7 +270,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                                 );
                             } else {
                                 $fileCopies[] = array(
-                                    'doc_id' => \REDCap::copyFile($valueToCopy, $project_id), 
+                                    'doc_id' => \REDCap::copyFile($valueToCopy, $destProjectId), 
                                     'project_id' => $destProjectId, 
                                     'record' => $destRecord, 
                                     'field_name' => $df, 
@@ -402,7 +409,8 @@ class CopyDataOnSave extends AbstractExternalModule {
             if ($enabled && $destPid!=$project_id) { // for active rules pointing at other projects - deactivate and remove project
                 $project_settings['copy-enabled'][$key] = false;
                 $project_settings['dest-project'][$key] = null;
-                $this->setProjectSettings($project_settings, $project_id);
+                $msm = new ModuleSettingsManager($this);
+                $msm->saveSettingsToHistory($project_settings);
             }
         }
     }
@@ -569,20 +577,45 @@ class CopyDataOnSave extends AbstractExternalModule {
     /**
      * summaryPage()
      * Content for summary page showing table of copy instruction configurations
-     * 
      */
     public function summaryPage() {
+        global $project_id;
+
+        // make the dropdown list of version history for export
+        $msm = new ModuleSettingsManager($this);
+        $instructionKeys = $this->getInstructionSettingKeys();
+        try {
+            $history = $msm->getFilteredSettingsHistory($instructionKeys);
+        } catch (\Throwable $th) {
+            //$this->log('Failed to read module settings history: '.$th->getMessage());
+            $history = array();
+        }
+        $versions = array();
+        if (empty($history)) {
+            $versions[0] = 'Current';
+            $cc = $this->getProjectSetting('copy-config');
+            if (!is_null($cc)) $msm->saveCurrentSettingsToHistory(); // log current when this is the first time viewed after upgrade to module v1.6.0+
+        } else {
+            foreach ($history as $version) {
+                $id = (empty($versions)) ? 0 : $version['log_id']; // use id=0 for current version of settings
+                $lbl = substr($version['timestamp'], 0, 16).' ('.$version['username'].')';
+                $versions[$id] = $lbl;
+            }
+        }
+        $versionDropdown = \RCView::select(array('id'=>'cdos-version','name'=>'cdos-version'), $versions);
+
         $instructions = $this->getSubSettings('copy-config');
         $columns = array(
             array('title'=>'#','tdclass'=>'text-center','getter'=>function(array $instruction){ return '<span class="cdos-seq"></span>'; }),
             array('title'=>'Description','tdclass'=>'text-center','getter'=>function(array $instruction){ 
-                $desc = $instruction['section-description'];
+                $desc = (isset($instruction['section-description'])) ? $instruction['section-description'] : ''; // old configs may be missing section-description
                 if (is_null($desc) || trim($desc=='')) {
                     return '<i class="fa-solid fa-minus text-muted"></i>';
                 } else {
                     $desc = $this->escape(trim($desc));
-                    $descDisplay = '<p class="m-0 text-left cdos-two-line-text" style="font-size:75%; max-width: 20ch;">'.str_replace('\n',' ',$desc).'</p>';
-                    return $descDisplay.'<span class="cdos-hidden">'.$desc.'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fa-solid fa-comment-dots mx-2"></i></button>';
+                    $descDisplay = '<span class="m-0 text-left cdos-two-line-text" style="font-size:75%; max-width: 20ch;">'.str_replace('\n',' ',$desc).'</span>';
+                    return '<span class="cdos-hidden">'.$desc.'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View full description">'.$descDisplay.'</button>';
+//                    return $descDisplay.'<span class="cdos-hidden">'.$desc.'</span><button class="cdos-btn-show btn btn-xs btn-outline-primary" title="View Description"><i class="fa-solid fa-comment-dots mx-2"></i></button>';
                 }
             }),
             array('title'=>'Enabled','tdclass'=>'text-center','getter'=>function(array $instruction){ 
@@ -630,7 +663,7 @@ class CopyDataOnSave extends AbstractExternalModule {
                     return '<i class="fa-solid fa-minus text-muted"></i>';
                 } else {
                     $copyInstruction = new CopyInstruction($instruction);
-                    $badge = ($copyInstruction->destination_event_source==CopyInstruction::evtSourceField) ? 'bg-primary' : 'bg-secondary';
+                    $badge = ($copyInstruction->dest_event_source==CopyInstruction::evtSourceField) ? 'bg-primary' : 'bg-secondary';
                     return "<span class='badge $badge'>".$instruction['dest-event'].'</span>';
                 }
             }),
@@ -673,10 +706,47 @@ class CopyDataOnSave extends AbstractExternalModule {
             })
         );
 
-        echo '<div class="projhdr"><i class="fa-solid fa-file-export mr-1"></i>Copy Data on Save: Summary of Copy Instructions</div>';
-        echo '<p>The table below shows the configuration settings for the copy instructions set up in this project.</p>';
-        echo '<div id="cdos-summary-table-container">';
-        echo '<table id="cdos-summary-table"><thead><tr>';
+        $lastExportType = \UIState::getUIStateValue($project_id, 'cdos-export', 'repeat-separator') ?? 'line';
+        switch ($lastExportType) {
+            case 'space': $spaceActive = 'active" aria-current="true"'; $lineActive  = $pipeActive  = ''; break;
+            case 'pipe':  $pipeActive  = 'active" aria-current="true"'; $lineActive  = $spaceActive = ''; break;
+            default:      $lineActive  = 'active" aria-current="true"'; $spaceActive = $pipeActive  = ''; break;
+        }
+        ?>
+        <div class="projhdr"><i class="fa-solid fa-file-export mr-1"></i>Copy Data on Save: Summary of Copy Instructions</div>
+        <div style="max-width: 1000px;">
+            <div id="cdos-intro-info">
+                <h6>Table of Copy Instructions</h6>
+                <p>The table below shows the current configuration settings of copy instructions set up in this project.</p>
+                <p>You may download or upload instructions in CSV format using the "Export" and "Import" buttons on this page. A new version is included in the dropdown list each time the module settings are saved or altered settings or imported.</p>
+            </div>
+            <div id="cdos-import-export">
+                <h6>Export & Import <button id="cdos-btn-import-info" class="btn btn-xs btn-default fs18" type="button"><i class="fa-solid fa-circle-info"></i></button></h6>
+                <div id="cdos-import-export-controls">
+                    <?= $versionDropdown ?>
+                    <div class="btn-group">
+                        <button name="cdos-btn-export-<?= $lastExportType ?>" class="cdos-btn-export btn btn-xs btn-primaryrc" type="button">
+                            <i class="fa-solid fa-file-export"></i> <?= \RCView::tt('global_71') ?>
+                        </button>
+                        <button type="button" class="btn btn-xs btn-primaryrc dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span class="visually-hidden">Toggle Dropdown</span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><span class="dropdown-item-text">Repeating value separator</span></li>
+                            <li><button name="cdos-btn-export-line"  class="cdos-btn-export dropdown-item <?= $lineActive  ?>" type="button"><i class="fa-solid fa-file-export"></i> <?= \RCView::tt('global_71') ?> (line)</button></li>
+                            <li><button name="cdos-btn-export-space" class="cdos-btn-export dropdown-item <?= $spaceActive ?>" type="button"><i class="fa-solid fa-file-export"></i> <?= \RCView::tt('global_71') ?> (space)</button></li>
+                            <li><button name="cdos-btn-export-pipe"  class="cdos-btn-export dropdown-item <?= $pipeActive  ?>" type="button"><i class="fa-solid fa-file-export"></i> <?= \RCView::tt('global_71') ?> (pipe)</button></li>
+                        </ul>
+                    </div>
+                    <button id="cdos-btn-import" class="btn btn-xs btn-success mx-2"><i class="fa-solid fa-file-import"></i> <?= \RCView::tt('global_72') ?></button> 
+                    <button id="cdos-btn-edit" class="btn btn-xs btn-dark"><i class="fa-solid fa-pencil"></i> <?= \RCView::tt('econsent_43') //"Edit settings"?></button> 
+                </div>
+                
+            </div>
+        </div>
+        <div id="cdos-summary-table-container">
+        <table id="cdos-summary-table"><thead><tr>
+        <?php 
 
         foreach ($columns as $col) {
             $class = (empty($col['tdclass'])) ? '' : ' class="'.$this->escape($col['tdclass']).'"';
@@ -696,10 +766,66 @@ class CopyDataOnSave extends AbstractExternalModule {
             echo '</tr>';
         }
         echo '</tbody></table></div>';
+
+        $url = $this->getUrl('export_import.php', false, false);
+
         $this->initializeJavascriptModuleObject();
         ?>
+        <div id="cdos-import-dialog-text" class="cdos-hidden">You may import Copy Data on Save instructions using a CSV file formatted congruently with how the instructions are exported from this page.</div>
+        <div id="cdos-import-file-container" class="cdos-hidden"></div>
+        <div id="cdos-import-info" class="cdos-hidden">
+            <p class="mt-0">Copy instructions may be exported and imported. Use the CSV delimiter character from your REDCap profile when importing.</p>
+            <p>Select the timestamp of the settings version to export. The first entry (default) is the latest version; the current settings.</p>
+            <p>Import files require the following <strong>twelve columns</strong> to be present (although you may alter the title text). Values are required for some columns and option for others, as indicated:</p>
+            <ol>
+                <li><strong>Description (optional)</strong></li>
+                <li><strong>Enabled</strong> (required): Integer from the following list:
+                    <ol start="0">
+                        <li>Disabled</li>
+                        <li>Enabled</li>
+                    </ol>
+                </li>
+                <li><strong>Trigger form(s)</strong> (optional): A separated<sup>*</sup> list of form names</li>
+                <li><strong>Trigger condition</strong> (optional): A REDCap logic expression</li>
+                <li><strong>Destination project id</strong> (required): You must have access to the project to <em>alter</em> this value</li>
+                <li><strong>Destination event</strong> (optional): Can be an event name in the destination proejct or a field name in the source project</li>
+                <li><strong>Record id source</strong> (required): Field in soure project containing record id for destination</li>
+                <li><strong>Record matching option</strong> (required): Integer from the following list:</li>
+                    <ol start="0">
+                        <li>Match record id (do not create)</li>
+                        <li>Match record id (create matching)</li>
+                        <li>Match record id (create auto-numbered)</li>
+                        <li>Look up via secondary unique field</li>
+                    </ol>
+                <li><strong>DAG option</strong> (required): Integer from the following list:
+                    <ol start="0">
+                        <li>Ignore or N/A</li>
+                        <li>Include DAG in copy</li>
+                    </ol>
+                </li>
+                <li><strong>Field mapping - source</strong> (repeating<sup>+</sup> - required): A separated<sup>*</sup> list of source project fields</li>
+                <li><strong>Field mapping - destination</strong> (repeating<sup>+</sup> - required): A separated<sup>*</sup> list of destination project fields</li>
+                <li><strong>Field mapping - only if empty</strong> (repeating<sup>+</sup> - optional): A separated<sup>*</sup> list of integer values from the following list:
+                    <ol start="0">
+                        <li>[Default when empty] Always copy (can overwrite)</li>
+                        <li>Copy only if destination field is empty</li>
+                    </ol>
+                </li>
+            </ol>
+            <p><sup>*</sup> "Separated list": repeating values can separated with any non-word character e.g. space, pipe, line-break. The import process will attempt to detect the separator character automatically.</p>
+            <p class="mb-0"><sup>+</sup> "Repeating": each of these mapping columns must have the same number of list entries.</p>
+        </div>
         <style type="text/css">
+            h6 { 
+                font-weight: bold; 
+            }
             #cdos-summary-table-container { max-width: 800px; }
+            #cdos-intro-info { margin: 1rem 0 1rem 0; }
+            #cdos-import-export { 
+                max-width: 500px;
+                margin: 1rem 0 1rem 0;
+            }
+            #cdos-version { font-size: 85%; }
             .cdos-hidden { display: none; }
             .cdos-field-map-dialog-content { max-height: 500px; overflow-y: scroll; }
             .cdos-field-map-index { display: inline-block; width: 35px; }
@@ -712,24 +838,168 @@ class CopyDataOnSave extends AbstractExternalModule {
                 box-orient: vertical;
                 -webkit-line-clamp: 2;
                 -webkit-box-orient: vertical;
-                max-height: 2em; /* Optional: sets a max height if the above isn't supported */
-                line-height: 1em; /* Ensure line-height is set correctly */
+                height: 2.1em;
+                line-height: 1em;
             }
         </style>
         <script type="text/javascript">
             let module = <?=$this->getJavascriptModuleObjectName()?>;
+            module.exportUrl = '<?=$url?>&action=export';
+            module.importUrl = '<?=$url?>&action=import';
             module.show = function() {
                 let title = $(this).attr('title');
                 let content = $(this).siblings('span:first').html();
                 simpleDialog(content, title);
             };
 
+            module.exportOk = function() {
+                window.location.href = module.exportUrl+'&sep='+module.export_sep+'&ver='+module.export_ver;
+            };
+
+            module.export = function() {
+                module.export_sep='line';
+                switch ($(this).attr('name')) {
+                    case 'cdos-btn-export-space': module.export_sep='space'; break;
+                    case 'cdos-btn-export-pipe': module.export_sep='pipe'; break;
+                    default: break;
+                }
+                $('button.cdos-btn-export').removeClass('active');
+                $('button.cdos-btn-export').removeAttr('aria-current');
+                $(this).addClass('active');
+                $(this).attr('aria-current', 'true');
+
+                module.export_ver = $('select[name=cdos-version]').val();
+                let verLbl = $('select[name=cdos-version] option:selected').text();
+                let confText = 'Export copy instructions:<ul><li>Version: '+verLbl+'</li><li>Repeat value separator: '+module.export_sep+'</li></ul>';
+                simpleDialog(confText,'Copy Data on Save: Export CSV','cdos-export-dialog',350,null,'<?= \RCView::tt('global_53', false) ?>',
+                    module.exportOk,
+                    '<?= \RCView::tt('design_401', false) ?>'
+                );
+            };
+
+            // region import code inspired by method in FormDisplayLogicSetup.js
+            module.import_elements = {};
+            module.import_container = document.querySelector('#cdos-import-file-container');
+
+            module.import = function() {
+                simpleDialog($('#cdos-import-dialog-text').html(),'Copy Data on Save: Import CSV','cdos-import-dialog',650,null,'<?= \RCView::tt('global_53', false) ?>',
+                    module.importFile,'<?= \RCView::tt('asi_006', false) ?>');
+                fitDialog($('#cdos-import-dialog'));
+                $('#cdos-import-dialog').dialog().next().find('button:last').addClass('ui-priority-primary').prepend('<img src="'+app_path_images+'xls.gif"> ');
+            };
+
+            module.submitImportFile = function() {
+                var data = new FormData(module.import_elements.uploadForm);
+
+                // can't use module.ajax() with file upload because payload gets put through JSON.stringify()
+                // module.ajax('< ?=static::IMPORT_ACTION?>', [data]).then(function(response) {
+
+                module.sendAjaxRequest('POST', data, { processData: false, contentType: false, })
+                    .done(function(response){
+                        if (response && response.result==1) {
+                            simpleDialog('The CSV file was successfully imported. This page will now reload to reflect the changes.', 'Copy Data on Save: Instruction Import Successful', null, 700, 'window.location.reload();');
+                        } else if (response && response.result==0) {
+                            const errorList = '<ul>' + response.errors.map(item => `<li>${item}</li>`).join('') + '</ul>'
+                            simpleDialog('<p class="my-0">The CSV file could not be imported. The following errors were encountered:</p>'+errorList, 'Copy Data on Save: Instruction Import Failed', null, 700);
+                        } else {
+                            console.log('response:');
+                            console.log(response);
+                            simpleDialog(woops);
+                        }
+                    }).fail(function(response){
+                        console.log(response);
+                        if (response.hasOwnProperty('message') && response.message == 'JSON.parse: unexpected character at line 1 column 1 of the JSON data') {
+                            simpleDialog('File upload could not be processed. Refresh this page and retry.'); // usually csrf expired
+                        } else {
+                            simpleDialog(woops);
+                        }
+                });
+            };
+            
+            module.sendAjaxRequest = function(method, data, options = {}) {
+                data.redcap_csrf_token = get_csrf_token(); // add the csrf token
+                var dfd = $.Deferred();
+                var base_params = {
+                    url: module.importUrl,
+                    type: method,
+                    data: data,
+                    dataType: 'json',
+                };
+                var params = $.extend(base_params, options);
+                $.ajax(params)
+                    .done( function( response, textStatus, jqXHR ) {
+                        dfd.resolve(response);
+                    }).fail( function( jqXHR, textStatus, errorThrown ) {
+                    var response = {
+                        status: "error",
+                        //message: jqXHR.message
+                        message: errorThrown
+                    };
+                    dfd.reject(response);
+                });
+                return dfd;
+            }
+
+            module.handleFileSelected = function(element) {
+                // upload the selected file
+                if(!!!element) return;
+                var self = this; // to maintain the scope inside the event listeners
+                // submit the upload form as a file is selected
+                element.addEventListener('change', function(e) {
+                    e.preventDefault();
+                    self.submitImportFile();
+                });
+            };
+
+            module.getFileInput = function() {
+                // create a file input element and register it's event handler
+                var fileInput = document.createElement('input');
+                fileInput.setAttribute('type', 'file');
+                fileInput.setAttribute('name', 'files');
+                module.handleFileSelected(fileInput);
+                return fileInput;
+            };
+
+            module.createUploadForm = function() {
+                // create the upload form and add it to the container
+                var uploadForm = createUploadForm('cdos-import-form', module.getFileInput()); // function createUploadForm() in base.js
+                var action_input = document.createElement('input');
+                action_input.setAttribute('type', 'hidden');
+                action_input.setAttribute('name', 'ajax-action');
+                action_input.setAttribute('value', '<?= static::IMPORT_ACTION ?>');
+                uploadForm.appendChild(action_input);
+                module.import_elements.uploadForm = uploadForm;
+                module.import_container.appendChild(uploadForm);
+            };
+
+            module.importFile = function() {
+                // open the "select file" dialog box
+                if(!module.import_elements.uploadForm) module.createUploadForm();
+                var fileInput = module.import_elements.uploadForm.querySelector('input[type="file"]');
+                fileInput.click();
+            };
+            // end region import code
+
+            module.importInfo = function() {
+                simpleDialog(
+                    $('#cdos-import-info').html(),
+                    'Copy Data on Save: Instruction Import Information',
+                    'cdos-import-info-dialog',850
+                );
+            };
+
+            module.editModuleSettings = function() {
+                window.location.href = app_path_webroot + 'ExternalModules/manager/project.php?pid='+pid+'&cdos_config=1';
+            };
+
             module.init = function() {
                 $('span.cdos-seq').each(function(i,e){ $(e).html(i+1) });
                 $('button.cdos-btn-show').on('click', module.show);
-                $('#cdos-summary-table').DataTable({
-                    paging: false
-                });
+                $('#cdos-summary-table').DataTable({ paging: false });
+                $('button.cdos-btn-export').on('click', module.export);
+                $('#cdos-btn-import').on('click', module.import);
+                $('#cdos-btn-import-info').on('click', module.importInfo);
+                $('#cdos-btn-edit').on('click', module.editModuleSettings);
             };
             $(document).ready(function(){
                 module.init();
@@ -738,19 +1008,369 @@ class CopyDataOnSave extends AbstractExternalModule {
         <?php
     }
 
+    /**
+     * redcap_every_page_top()
+     * EM Manager page in project: 
+     * - include a link to the summary page
+     * - auto-open config settings when entering from summary page button click
+     */
     public function redcap_every_page_top($project_id) {
         if (!defined('PAGE')) return;
-        if (!empty($project_id) && PAGE==='manager/project.php') {
-            $url = $this->getUrl('summary.php',false,false);
+        if (empty($project_id) || PAGE!=='manager/project.php') return;
+
+        $summaryPageUrl = $this->getUrl('summary.php',false,false);
+        ?>
+        <script type="text/javascript">
+            /*CDoS summary page link*/
+            $(document).ready(function(){
+                let url = '<?=$summaryPageUrl?>';
+                let loc = $('tr[data-module="copy_data_on_save"] div.external-modules-description');
+                $(loc).append('<div class="mt-1"><a href="'+url+'"><i class="fa-solid fa-list-ol" style="margin-right: 5px;"></i> View Summary of Copy Instructions</a>')
+            });
+        </script>
+        <?php
+        if (isset($_GET['cdos_config'])) {
             ?>
             <script type="text/javascript">
-                $(document).ready(function(){
-                    let url = '<?=$url?>';
-                    let loc = $('tr[data-module="copy_data_on_save"] div.external-modules-description');
-                    $(loc).append('<div class="mt-1"><a href="'+url+'"><i class="fa-solid fa-list-ol" style="margin-right: 5px;"></i> View Summary of Copy Instructions</a>')
+                /*CDoS auto-config*/
+                $(window).on('load', function() {
+                    history.pushState({}, null, location.href.split("&cdos_config")[0]);
+                    setTimeout(function() {
+                        $('tr[data-module="copy_data_on_save"] button.external-modules-configure-button').trigger('click');
+                    }, 1000);
                 });
             </script>
             <?php
         }
+    }
+
+    public function userHasPermission(): bool {
+        global $user_rights;
+        $user_rights = (isset($user_rights) && is_array($user_rights)) ? $user_rights : array();
+        $modulePermission = $this->getSystemSetting('config-require-user-permission');
+        if ($modulePermission) {
+            $userHasPermission = (is_array($user_rights['external_module_config']) && in_array('copy_data_on_save', $user_rights['external_module_config']) || (defined('SUPER_USER') && SUPER_USER && !\UserRights::isImpersonatingUser()));
+        } else {
+            $userHasPermission = ($user_rights['design'] || (defined('SUPER_USER') && SUPER_USER && !\UserRights::isImpersonatingUser()));
+        }
+        return $userHasPermission;
+    }
+
+    public function export(?string $separatorOption=null, ?int $version=null): void {
+        global $project_id;
+        $instructions = array();
+
+        switch ($separatorOption) {
+            case 'space': $repeatValueSeparator = ' '; break;
+            case 'pipe': $repeatValueSeparator = '|'; break;
+            default: $separatorOption = 'line'; $repeatValueSeparator = PHP_EOL; break;
+        }
+        \UIState::saveUIStateValue($project_id, 'cdos-export', 'repeat-separator', $separatorOption);
+        
+        $delimiter = \User::getCsvDelimiter();
+        if ($delimiter == 'tab' || $delimiter == 'TAB') $delimiter = "\t";
+
+        if ($version === 0) {
+            // just read current settings
+            $instructions = $this->getSubSettings('copy-config');
+        } else {
+            // get settings from logged history
+            $msm = new ModuleSettingsManager($this);
+            $loggedSettings = $msm->getSettingsHistoryByLogId($version);
+            $moduleSettings = $loggedSettings[0]['module_settings'];
+            $settingConfig = $this->getSettingConfig('copy-config');
+            $instructions = $msm->getSubSettingsFromSettingsArray($moduleSettings, $settingConfig);
+        }           
+
+        // make export file contents 
+        $filename = "Copy_Data_on_Save_Export_pid".$project_id."_".date("Y-m-d_Hi");
+        $titles = array('Description','Enabled','Trigger form(s)','Trigger condition','Destination project','Destination event','Record id source','Record matching option','DAG option','Field map - source','Field map - destination','Field map - only if empty');
+
+        $fp = fopen(APP_PATH_TEMP.$filename, 'w');
+        fputcsv($fp, $titles, $delimiter, '"', '');
+
+        foreach ($instructions as $instruction) {
+            $instructionRow = array_fill(0, 12, null);
+            foreach ($instruction as $key => $value) {
+                switch ($key) {
+                    case 'section-description':
+                        $instructionRow[0] = $value ?? ''; // (str_contains($value, $delimiter)) ? '"'.str_replace('"','""',$value).'"' : $value;
+                        break;
+                    case 'copy-enabled':
+                        $instructionRow[1] = ($value==1) ? 1 : 0;
+                        break;
+                    case 'trigger-form':
+                        $instructionRow[2] = implode($repeatValueSeparator, $value); // array of form names
+                        break;
+                    case 'trigger-logic':
+                        $instructionRow[3] = $value ?? ''; // (str_contains($value, $delimiter)) ? '"'.str_replace('"','""',$value).'"' : $value;
+                        break;
+                    case 'dest-project':
+                        $instructionRow[4] = $value ?? '';
+                        break;
+                    case 'dest-event':
+                        $instructionRow[5] = $value ?? '';
+                        break;
+                    case 'record-id-field':
+                        $instructionRow[6] = $value ?? '';
+                        break;
+                    case 'record-create':
+                        $instructionRow[7] = $value ?? '';
+                        break;
+                    case 'dag-option':
+                        $instructionRow[8] = $value ?? '';
+                        break;
+                    case 'copy-fields':
+                        $sfArray = $dfArray = $oeArray = array();
+                        foreach ($value as $cfValue) {
+                            $sfArray[] = $cfValue['source-field'] ?? '';
+                            $dfArray[] = $cfValue['dest-field'] ?? '';
+                            $oeArray[] = ($cfValue['only-if-empty']==1) ? 1 : 0;
+                        }
+                        $instructionRow[9] = implode($repeatValueSeparator, $sfArray);
+                        $instructionRow[10] = implode($repeatValueSeparator, $dfArray);
+                        if (array_sum($oeArray)===0) {
+                            $instructionRow[11] = ''; // if all fields can overwrite then leave last col empty for ease of reading
+                        } else {
+                            $instructionRow[11] = implode($repeatValueSeparator, $oeArray);
+                        }
+                        break;
+                    default: break;
+                }
+            }
+            fputcsv($fp, $instructionRow, $delimiter, '"', '');
+        }
+    	fclose($fp);
+
+        // Output to file
+        header('Pragma: anytextexeptno-cache', true);
+        header("Content-type: application/csv");
+        header("Content-Disposition: attachment; filename=$filename.csv");
+
+        $fp = fopen(APP_PATH_TEMP.$filename, 'rb');
+        print \addBOMtoUTF8(fread($fp, filesize(APP_PATH_TEMP.$filename)));
+
+        // Close file and delete it from temp directory
+        fclose($fp);
+        unlink(APP_PATH_TEMP.$filename);
+
+        $this->log('Export instruction list', array( 'user' => USERID ));
+    }
+
+    /**
+     * import()
+     * Nb. can't use redcap_module_ajax() for file submit
+     * @param string ajax-action
+     * @return array
+     */
+    public function import($action): array {
+        global $project_id;
+        $configArray = $this->getConfigArray();
+        if (!is_array($configArray['auth-ajax-actions']) || !in_array($action, $configArray['auth-ajax-actions'])) return array('Invalid action submitted');
+        if (empty($project_id)) return array('Could not detect project');
+
+        $files = \FileManager::getUploadedFiles();
+
+        if(count($files)>1) return array('Multiple files uploaded');
+        if (count($files)==0) return array('No file uploaded');
+
+        $file = array_pop($files);
+
+        if (!ends_with($file['name'], '.csv') || !in_array($file['type'], array('text/csv', 'text/plain','application/vnd.ms-excel','application/csv'))) {
+            return array('File "'.$file['name'].'" is not a CSV file');
+        }
+
+        $csvArray = \FileManager::readCSV($file['tmp_name'], 0, \User::getCsvDelimiter());
+
+        if (!is_array($csvArray)) return array('Could not read CSV file rows');
+        if (count($csvArray) === 0) return array('File contains no rows');
+        if (count($csvArray) === 1) return array('File contains header row but no copy instructions');
+        
+        $currentSettings = $this->getProjectSettings();
+
+        $errors = array();
+        $instructions = array();
+        $instructionSettings = $this->getInstructionSettingKeys();
+        $instructionSettings = array_map(function() { return array(); }, array_flip($instructionSettings));
+        foreach ($csvArray as $rowIndex => $row) {
+            $importColumns = array(
+                'section-description' => null,
+                'copy-enabled' => null,
+                'trigger-form' => null,
+                'trigger-logic' => null,
+                'dest-project' => null,
+                'dest-event' => null,
+                'record-id-field' => null,
+                'record-create' => null,
+                'dag-option' => null,
+                'copy-fields-source' => null,
+                'copy-fields-dest' => null,
+                'copy-fields-ifempty' => null
+            );
+            
+            if (count($row) < count($importColumns)) {
+                $errors[] = "File row $rowIndex: expected ".count($importColumns)." values, found only ".count($row);
+                continue;
+            }
+            if ($rowIndex===0) continue; // don't need to validate column heading text
+            
+            $importColumnsKeys = array_keys($importColumns);
+
+            for ($i=0; $i < count($importColumns); $i++) { 
+                $importColumns[$importColumnsKeys[$i]] = $row[$i];
+            }
+
+            // if changing the destination pid for an existing instruction, validate that user has design rights in destination project
+            if (array_key_exists($rowIndex-1, $currentSettings['dest-project'])) {
+                $currentPid = $currentSettings['dest-project'][$rowIndex-1];
+                if ($currentPid != $importColumns['dest-project'] && !$this->userPidDesign($importColumns['dest-project'])) {
+                    $errors[] = "File row $rowIndex: you cannot update the destination project id for instruction #$rowIndex from $currentPid to ".$importColumns['dest-project']." because you do not have \"Design & Setup\" rights in project ".$importColumns['dest-project'];
+                    continue;
+                }
+            }
+
+            // prepare and validate repeating settings: trigger form(s), source/destination field pairs and "only-if-empty"
+            $importColumns['trigger-form'] = $this->makeRepeatingSetting($importColumns['trigger-form'] ?? '');
+            $importColumns['copy-fields-source'] = $this->makeRepeatingSetting($importColumns['copy-fields-source'] ?? '');
+            $importColumns['copy-fields-dest'] = $this->makeRepeatingSetting($importColumns['copy-fields-dest'] ?? '');
+            $importColumns['copy-fields-ifempty'] = $this->makeRepeatingSetting($importColumns['copy-fields-ifempty'] ?? '');
+            
+            $nSource = count($importColumns['copy-fields-source']);
+            $nDest = count($importColumns['copy-fields-dest']);
+            $nIfEmpty = count($importColumns['copy-fields-ifempty']);
+
+            if ($nSource !== $nDest) {
+                $errors[] = "File row $rowIndex: count of destination fields ($nDest) does not match count of source fields ($nSource) ";
+            }
+            if ($nIfEmpty === 1 && $importColumns['copy-fields-ifempty'][0]==='') {
+                $importColumns['copy-fields-ifempty'] = array_fill(0, $nSource, false);
+            } else if ($nSource !== $nIfEmpty) {
+                $errors[] = "File row $rowIndex: count of values for \"only if empty\" ($nDest) does not match count of source fields ($nSource) (or can be empty)";
+            }
+
+            $copyFields = array();
+            foreach ($importColumns['copy-fields-source'] as $idx => $value) {
+                $copyFields[] = array(
+                    'source-field' => $value,
+                    'dest-field' => $importColumns['copy-fields-dest'][$idx],
+                    'only-if-empty' => $importColumns['copy-fields-ifempty'][$idx]
+                );
+            }
+            $importColumns['copy-fields'] = $copyFields;
+            unset($importColumns['copy-fields-source']);
+            unset($importColumns['copy-fields-dest']);
+            unset($importColumns['copy-fields-ifempty']);
+
+            try {
+                $instructions[] = $instruction = new CopyInstruction($importColumns, $rowIndex+1);
+
+                foreach ($instruction->getConfigErrors() as $ce) {
+                    $errors[] = "File row $rowIndex: ".$ce;
+                }
+            } catch (\Throwable $th) {
+                $errors[] = "File row $rowIndex: ".$th->getMessage();
+            }
+        }
+
+        if (count($errors)) return $errors;
+
+        // merge uploaded copy-fields instructions into project settings, check for changes, then save
+        $newSettings = $currentSettings; // php arrays copy by val not ref
+        $newSettings['copy-config'] = array_fill(0, $rowIndex, 'true'); // copy-config has one element per instruction
+        foreach ($instructions as $idx => $instruction) {
+            $instructionSettings = $instruction->getAsModuleSettings();
+            foreach ($instructionSettings as $key => $value) {
+                $newSettings[$key][$idx] = $value; // e.g. $newSettings['section-description'][0] = 'this is the desc for the first instruction'
+            }
+        }
+
+        $checkKeys = array('section-description','copy-enabled','trigger-form','trigger-logic','dest-project','dest-event','record-id-field','record-create','dag-option','copy-fields','source-field','dest-field','only-if-empty');
+        if (
+            ModuleSettingsManager::are_equal(
+                ModuleSettingsManager::keep_keys($newSettings, $checkKeys), 
+                ModuleSettingsManager::keep_keys($currentSettings, $checkKeys)
+            ) ) 
+        {
+            return array('No changes to copy instructions detected');
+        }
+
+        try {
+            $msm = new ModuleSettingsManager($this);
+            $msm->saveSettingsToHistory($newSettings);
+        } catch (\Throwable $th) {
+            $errors[] = 'Could not save results: '.$th->getMessage();
+        }
+
+        return $errors;
+    }
+
+    /**
+     * userPidDesign()
+     * Does current user have design rights in project?
+     * @param mixed project id
+     * @return bool
+     */
+    protected function userPidDesign($pid): bool {
+        if ($this->isSuperUser()) return true;
+        $design = 0;
+        $sql = "SELECT COALESCE(r.design, u.design, 0) as design 
+                FROM redcap_projects p
+                INNER JOIN redcap_user_rights u ON p.project_id = u.project_id
+                LEFT OUTER JOIN redcap_user_roles r ON u.role_id = r.role_id
+                WHERE p.project_id = ? 
+                AND u.username = ? 
+                AND p.date_deleted IS NULL
+                AND p.status IN (0,1) 
+                AND p.completed_time IS NULL";
+
+        $q = $this->query($sql, [$pid, $this->getUser()->getUsername()]);
+        
+        while ($row = $q->fetch_assoc($q)) {
+            $design = $row['design'];
+        }
+        return (bool)$design;
+    }
+
+    /**
+     * makeRepeatingSetting()
+     * @param string setting value as string 
+     * @return array setting value separated into array by line, space, or pipe, whichever produces most elements
+     */
+    protected function makeRepeatingSetting(string $settingString): array {
+        $separators = array(PHP_EOL, ' ', '|');
+        $settingArray = array();
+        foreach ($separators as $sep) {
+            $split = explode($sep, trim($settingString));
+            if (count($split) > count($settingArray)) $settingArray = $split;
+        }
+        return $settingArray;
+    }
+
+    protected function getInstructionSettingKeys(): array {
+        $keys = array();
+        $config = $this->getConfig();
+        foreach ($config as $key => $settings) {
+            if ($key !== 'project-settings') continue;
+            foreach ($settings as $setting) {
+                if ($setting['key'] !== 'copy-config') continue;
+                    foreach ($setting['sub_settings'] as $ss) {
+                        if ($ss['type'] !== 'descriptive') $keys[] = $ss['key'];
+                    }
+                break;
+            }
+            break;
+        }
+        return $keys;
+    }
+
+    /**
+     * redcap_module_save_configuration()
+     * Triggered after a module configuration is saved.
+     * Capture history when instructions updated.
+     */
+    public function redcap_module_save_configuration($project_id) {
+        if (empty($project_id)) return;
+        $msm = new ModuleSettingsManager($this);
+        $msm->saveCurrentSettingsToHistory();
     }
 }

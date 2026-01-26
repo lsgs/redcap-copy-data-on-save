@@ -12,7 +12,9 @@ Copying the value of one field to multiple fields in the destination *is* suppor
 
 Enable and configure the module in the source project. No action is required in the destination project.
 
-There is a link button available in the configuration settings dialog that gives access where a table of the copy instruction configuration can be viewed.
+### Summary of Copy Instructions
+
+The module provides a summary page showing a table of the copy instruction settings along with (from v1.6.0) buttons that facilitate export and import of the instructions in CSV format. The summary page can be accessed via a link in the module description and in the configuration settings dialog.
 
 ## Repeating Data
 
