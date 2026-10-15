@@ -1221,7 +1221,7 @@ class CopyDataOnSave extends AbstractExternalModule {
             $importColumnsKeys = array_keys($importColumns);
 
             for ($i=0; $i < count($importColumns); $i++) { 
-                $importColumns[$importColumnsKeys[$i]] = $row[$i];
+                $importColumns[$importColumnsKeys[$i]] = trim($row[$i]);
             }
 
             // if changing the destination pid for an existing instruction, validate that user has design rights in destination project
@@ -1351,7 +1351,7 @@ class CopyDataOnSave extends AbstractExternalModule {
         $separators = array(PHP_EOL, ' ', '|');
         $settingArray = array();
         foreach ($separators as $sep) {
-            $split = explode($sep, trim($settingString));
+            $split = array_map('trim', explode($sep, trim($settingString)));
             if (count($split) > count($settingArray)) $settingArray = $split;
         }
         return $settingArray;
@@ -1381,6 +1381,16 @@ class CopyDataOnSave extends AbstractExternalModule {
      */
     public function redcap_module_save_configuration($project_id) {
         if (empty($project_id)) return;
+
+        // trim whitespace accidentally entered into the free-text field name settings
+        foreach (array('dest-event','dest-field') as $key) {
+            $value = $original = $this->getProjectSetting($key, $project_id);
+            if (is_array($value)) {
+                array_walk_recursive($value, function(&$v) { if (is_string($v)) $v = trim($v); });
+                if ($value !== $original) $this->setProjectSetting($key, $value, $project_id);
+            }
+        }
+
         $msm = new ModuleSettingsManager($this);
         $msm->saveCurrentSettingsToHistory();
     }
